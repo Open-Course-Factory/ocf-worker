@@ -1,6 +1,7 @@
 package config
 
 import (
+	"ocf-worker/pkg/storage"
 	"os"
 	"strconv"
 	"time"
@@ -9,16 +10,11 @@ import (
 type Config struct {
 	Port            string
 	DatabaseURL     string
-	StorageType     string // "filesystem" or "garage"
-	StoragePath     string
-	GarageEndpoint  string
-	GarageAccessKey string
-	GarageSecretKey string
-	GarageBucket    string
 	JobTimeout      time.Duration
 	CleanupInterval time.Duration
 	LogLevel        string
 	Environment     string
+	Storage         *storage.StorageConfig
 }
 
 func Load() *Config {
@@ -28,16 +24,19 @@ func Load() *Config {
 	return &Config{
 		Port:            getEnv("PORT", "8081"),
 		DatabaseURL:     getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/generation_service?sslmode=disable"),
-		StorageType:     getEnv("STORAGE_TYPE", "filesystem"),
-		StoragePath:     getEnv("STORAGE_PATH", "./storage"),
-		GarageEndpoint:  getEnv("GARAGE_ENDPOINT", ""),
-		GarageAccessKey: getEnv("GARAGE_ACCESS_KEY", ""),
-		GarageSecretKey: getEnv("GARAGE_SECRET_KEY", ""),
-		GarageBucket:    getEnv("GARAGE_BUCKET", "ocf-courses"),
 		JobTimeout:      timeout,
 		CleanupInterval: cleanup,
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 		Environment:     getEnv("ENVIRONMENT", "development"),
+		Storage: &storage.StorageConfig{
+			Type:      getEnv("STORAGE_TYPE", "filesystem"),
+			BasePath:  getEnv("STORAGE_PATH", "./storage"),
+			Endpoint:  getEnv("GARAGE_ENDPOINT", ""),
+			AccessKey: getEnv("GARAGE_ACCESS_KEY", ""),
+			SecretKey: getEnv("GARAGE_SECRET_KEY", ""),
+			Bucket:    getEnv("GARAGE_BUCKET", "ocf-courses"),
+			Region:    getEnv("GARAGE_REGION", "us-east-1"),
+		},
 	}
 }
 

@@ -54,7 +54,7 @@ func main() {
 	// Start server in goroutine
 	log.Printf("Starting ocf-worker on port %s", cfg.Port)
 	log.Printf("Database: connected")
-	log.Printf("Storage type: %s", cfg.StorageType)
+	log.Printf("Storage type: %s", cfg.Storage.Type)
 
 	serverErr := make(chan error, 1)
 	go func() {
