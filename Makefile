@@ -54,3 +54,41 @@ deps:
 setup: deps
 	cp .env.example .env
 	mkdir -p storage logs
+
+# Docker commands
+docker-dev:
+	./scripts/dev.sh
+
+docker-dev-hot:
+	./scripts/dev-hot.sh
+
+docker-prod:
+	./scripts/prod.sh
+
+docker-stop:
+	./scripts/stop.sh
+
+# Utility commands
+logs:
+	docker-compose logs -f
+
+logs-db:
+	docker-compose logs -f postgres-worker
+
+shell-worker:
+	docker-compose exec ocf-worker sh
+
+shell-db:
+	docker-compose exec postgres-worker psql -U ocf_worker -d ocf_worker_db
+
+# Database operations
+db-migrate:
+	docker-compose exec ocf-worker ocf-worker migrate
+
+db-backup:
+	docker-compose exec postgres-worker pg_dump -U ocf_worker -d ocf_worker_db > backup_$(shell date +%Y%m%d_%H%M%S).sql
+
+db-restore:
+	@echo "Usage: make db-restore FILE=backup_file.sql"
+	@if [ -z "$(FILE)" ]; then echo "❌ FILE parameter required"; exit 1; fi
+	docker-compose exec -T postgres-worker psql -U ocf_worker -d ocf_worker_db < $(FILE)

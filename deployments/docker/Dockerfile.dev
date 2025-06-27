@@ -1,0 +1,17 @@
+FROM golang:1.23
+
+# Installer Air pour hot reload et autres outils
+RUN go install github.com/cosmtrek/air@latest
+
+# Installer Node.js et Slidev
+RUN apt install nodejs npm curl -y
+RUN npm install -g @slidev/cli playwright-chromium
+RUN npx playwright install-deps
+
+WORKDIR /app
+
+# Copier la configuration Air
+COPY .air.toml .air.toml
+
+# Point d'entrée pour le développement
+CMD ["air"]

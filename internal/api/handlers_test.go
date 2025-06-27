@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"ocf-worker/internal/jobs"
 	"ocf-worker/pkg/models"
+	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func TestHealthEndpoint(t *testing.T) {
-	jobService := jobs.NewJobService()
+	mockRepo := jobs.NewJobRepository(&gorm.DB{}) // or use a suitable mock implementation
+	jobService := jobs.NewJobServiceImpl(mockRepo)
 	router := SetupRouter(jobService)
 
 	w := httptest.NewRecorder()
@@ -22,7 +24,7 @@ func TestHealthEndpoint(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)
-	
+
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -31,16 +33,17 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestCreateJobEndpoint(t *testing.T) {
-	jobService := jobs.NewJobService()
+	mockRepo := jobs.NewJobRepository(&gorm.DB{}) // or use a suitable mock implementation
+	jobService := jobs.NewJobServiceImpl(mockRepo)
 	router := SetupRouter(jobService)
 
 	jobID := uuid.New()
 	courseID := uuid.New()
-	
+
 	reqBody := models.GenerationRequest{
-		JobID:      jobID,
-		CourseID:   courseID,
-		SourcePath: "courses/pending/" + jobID.String(),
+		JobID:       jobID,
+		CourseID:    courseID,
+		SourcePath:  "courses/pending/" + jobID.String(),
 		CallbackURL: "http://localhost:8080/api/v1/generations/" + jobID.String() + "/status",
 	}
 
@@ -51,7 +54,7 @@ func TestCreateJobEndpoint(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, 201, w.Code)
-	
+
 	var response models.JobResponse
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -61,7 +64,8 @@ func TestCreateJobEndpoint(t *testing.T) {
 }
 
 func TestInvalidJobID(t *testing.T) {
-	jobService := jobs.NewJobService()
+	mockRepo := jobs.NewJobRepository(&gorm.DB{}) // or use a suitable mock implementation
+	jobService := jobs.NewJobServiceImpl(mockRepo)
 	router := SetupRouter(jobService)
 
 	w := httptest.NewRecorder()

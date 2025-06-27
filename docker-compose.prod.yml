@@ -1,0 +1,64 @@
+services:
+  postgres-worker:
+    image: postgres:15-alpine
+    container_name: ocf-worker-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ocf_worker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ocf_worker_db}
+    volumes:
+      - postgres_worker_prod:/var/lib/postgresql/data
+    networks:
+      - ocf-worker-prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ocf_worker} -d ${POSTGRES_DB:-ocf_worker_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    # Pas de ports exposés en prod (accès interne uniquement)
+
+  ocf-worker:
+    image: ocf-worker:${VERSION:-latest}
+    container_name: ocf-worker-prod
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-ocf_worker}:${POSTGRES_PASSWORD}@postgres-worker:5432/${POSTGRES_DB:-ocf_worker_db}?sslmode=disable
+      PORT: 8081
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      STORAGE_TYPE: ${STORAGE_TYPE:-garage}
+      GARAGE_ENDPOINT: ${GARAGE_ENDPOINT}
+      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
+      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY}
+      GARAGE_BUCKET: ${GARAGE_BUCKET:-ocf-courses}
+      JOB_TIMEOUT: ${JOB_TIMEOUT:-30m}
+      CLEANUP_INTERVAL: ${CLEANUP_INTERVAL:-6h}
+      ENVIRONMENT: production
+    ports:
+      - "${WORKER_PORT:-8081}:8081"
+    depends_on:
+      postgres-worker:
+        condition: service_healthy
+    volumes:
+      - worker_storage_prod:/app/storage
+      - worker_logs_prod:/app/logs
+    networks:
+      - ocf-worker-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_worker_prod:
+    driver: local
+  worker_storage_prod:
+    driver: local
+  worker_logs_prod:
+    driver: local
+
+networks:
+  ocf-worker-prod:
+    driver: bridge
+    external: false

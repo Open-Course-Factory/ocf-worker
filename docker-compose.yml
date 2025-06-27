@@ -1,0 +1,94 @@
+services:
+  postgres-worker:
+    image: postgres:15-alpine
+    container_name: ocf-worker-postgres
+    environment:
+      POSTGRES_USER: ocf_worker
+      POSTGRES_PASSWORD: worker_password_2024
+      POSTGRES_DB: ocf_worker_db
+    ports:
+      - "5433:5432"  # Port différent pour éviter les conflits avec OCF Core
+    volumes:
+      - postgres_worker_data:/var/lib/postgresql/data
+      - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ocf-worker-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocf_worker -d ocf_worker_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  ocf-worker:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile
+    container_name: ocf-worker-service
+    environment:
+      DATABASE_URL: postgres://ocf_worker:worker_password_2024@postgres-worker:5432/ocf_worker_db?sslmode=disable
+      PORT: 8081
+      LOG_LEVEL: info
+      STORAGE_TYPE: filesystem
+      STORAGE_PATH: /app/storage
+      JOB_TIMEOUT: 30m
+      CLEANUP_INTERVAL: 1h
+      ENVIRONMENT: development
+    ports:
+      - "8081:8081"  # Port du worker
+    depends_on:
+      postgres-worker:
+        condition: service_healthy
+    volumes:
+      - worker_storage:/app/storage
+      - worker_logs:/app/logs
+      - ./storage:/app/storage  # Mount local pour développement
+    networks:
+      - ocf-worker-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Service optionnel pour le développement avec hot reload
+  ocf-worker-dev:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.dev
+    container_name: ocf-worker-dev
+    environment:
+      DATABASE_URL: postgres://ocf_worker:worker_password_2024@postgres-worker:5432/ocf_worker_db?sslmode=disable
+      PORT: 8081
+      LOG_LEVEL: debug
+      STORAGE_TYPE: filesystem
+      STORAGE_PATH: /app/storage
+      ENVIRONMENT: development
+    ports:
+      - "8082:8081"  # Port différent pour le mode dev
+    depends_on:
+      postgres-worker:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - worker_storage_dev:/app/storage
+    networks:
+      - ocf-worker-network
+    profiles:
+      - dev  # Démarre seulement avec --profile dev
+
+volumes:
+  postgres_worker_data:
+    driver: local
+  worker_storage:
+    driver: local
+  worker_logs:
+    driver: local
+  worker_storage_dev:
+    driver: local
+
+networks:
+  ocf-worker-network:
+    driver: bridge
+    name: ocf-worker-net
