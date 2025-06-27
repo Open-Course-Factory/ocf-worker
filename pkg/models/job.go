@@ -1,6 +1,8 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,22 +20,90 @@ const (
 	StatusTimeout    JobStatus = "timeout"
 )
 
+// JSON type for PostgreSQL compatibility
+type JSON map[string]interface{}
+
+func (j JSON) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return json.Marshal(j)
+}
+
+func (j *JSON) Scan(value interface{}) error {
+	if value == nil {
+		*j = make(map[string]interface{})
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSON", value)
+	}
+
+	if len(bytes) == 0 {
+		*j = make(map[string]interface{})
+		return nil
+	}
+
+	return json.Unmarshal(bytes, j)
+}
+
+// StringSlice type for PostgreSQL JSON arrays
+type StringSlice []string
+
+func (ss StringSlice) Value() (driver.Value, error) {
+	if ss == nil {
+		return json.Marshal([]string{})
+	}
+	return json.Marshal(ss)
+}
+
+func (ss *StringSlice) Scan(value interface{}) error {
+	if value == nil {
+		*ss = []string{}
+		return nil
+	}
+
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into StringSlice", value)
+	}
+
+	if len(bytes) == 0 {
+		*ss = []string{}
+		return nil
+	}
+
+	return json.Unmarshal(bytes, ss)
+}
+
 // GenerationJob est le modèle principal pour la base de données
 type GenerationJob struct {
-	ID          uuid.UUID              `json:"id" gorm:"type:uuid;primary_key"`
-	CourseID    uuid.UUID              `json:"course_id" gorm:"type:uuid;not null;index"`
-	Status      JobStatus              `json:"status" gorm:"type:varchar(20);not null;default:'pending';index"`
-	Progress    int                    `json:"progress" gorm:"default:0;check:progress >= 0 AND progress <= 100"`
-	SourcePath  string                 `json:"source_path" gorm:"type:text;not null"`
-	ResultPath  string                 `json:"result_path" gorm:"type:text"`
-	CallbackURL string                 `json:"callback_url" gorm:"type:text"`
-	Error       string                 `json:"error,omitempty" gorm:"type:text"`
-	Logs        []string               `json:"logs" gorm:"type:json"`
-	Metadata    map[string]interface{} `json:"metadata" gorm:"type:json"`
-	CreatedAt   time.Time              `json:"created_at" gorm:"index"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	StartedAt   *time.Time             `json:"started_at,omitempty" gorm:"index"`
-	CompletedAt *time.Time             `json:"completed_at,omitempty" gorm:"index"`
+	ID          uuid.UUID   `json:"id" gorm:"type:uuid;primary_key"`
+	CourseID    uuid.UUID   `json:"course_id" gorm:"type:uuid;not null;index"`
+	Status      JobStatus   `json:"status" gorm:"type:varchar(20);not null;default:'pending';index"`
+	Progress    int         `json:"progress" gorm:"default:0;check:progress >= 0 AND progress <= 100"`
+	SourcePath  string      `json:"source_path" gorm:"type:text;not null"`
+	ResultPath  string      `json:"result_path" gorm:"type:text"`
+	CallbackURL string      `json:"callback_url" gorm:"type:text"`
+	Error       string      `json:"error,omitempty" gorm:"type:text"`
+	Logs        StringSlice `json:"logs" gorm:"type:jsonb;default:'[]'"`
+	Metadata    JSON        `json:"metadata" gorm:"type:jsonb;default:'{}'"`
+	CreatedAt   time.Time   `json:"created_at" gorm:"index"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	StartedAt   *time.Time  `json:"started_at,omitempty" gorm:"index"`
+	CompletedAt *time.Time  `json:"completed_at,omitempty" gorm:"index"`
 }
 
 // TableName spécifie le nom de la table
@@ -52,10 +122,10 @@ func (j *GenerationJob) BeforeCreate(tx *gorm.DB) error {
 
 	// Initialiser les slices si nil
 	if j.Logs == nil {
-		j.Logs = []string{}
+		j.Logs = StringSlice{}
 	}
 	if j.Metadata == nil {
-		j.Metadata = make(map[string]interface{})
+		j.Metadata = JSON{}
 	}
 
 	return nil
@@ -96,6 +166,10 @@ type JobResponse struct {
 
 // ToResponse convertit un GenerationJob en JobResponse
 func (j *GenerationJob) ToResponse() *JobResponse {
+	// Convertir les types personnalisés en types standard
+	logs := []string(j.Logs)
+	metadata := map[string]interface{}(j.Metadata)
+	
 	return &JobResponse{
 		ID:          j.ID,
 		CourseID:    j.CourseID,
@@ -105,8 +179,8 @@ func (j *GenerationJob) ToResponse() *JobResponse {
 		ResultPath:  j.ResultPath,
 		CallbackURL: j.CallbackURL,
 		Error:       j.Error,
-		Logs:        j.Logs,
-		Metadata:    j.Metadata,
+		Logs:        logs,
+		Metadata:    metadata,
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
 		StartedAt:   j.StartedAt,

@@ -12,6 +12,7 @@ import (
 	"ocf-worker/internal/config"
 	"ocf-worker/internal/database"
 	"ocf-worker/internal/jobs"
+	"ocf-worker/internal/storage"
 
 	"github.com/joho/godotenv"
 )
@@ -24,6 +25,13 @@ func main() {
 
 	// Load configuration
 	cfg := config.Load()
+
+	// Initialize storage
+	storageBackend, err := storage.NewStorage(cfg.Storage)
+	if err != nil {
+		log.Fatal("Failed to initialize storage:", err)
+	}
+	storageService := storage.NewStorageService(storageBackend)
 
 	// Connect to database
 	db, err := database.Connect(cfg.DatabaseURL, cfg.LogLevel)
@@ -48,13 +56,16 @@ func main() {
 
 	go cleanupService.Start(ctx)
 
-	// Setup router
-	router := api.SetupRouter(jobService)
+	// Setup router with both services
+	router := api.SetupRouter(jobService, storageService)
 
 	// Start server in goroutine
 	log.Printf("Starting ocf-worker on port %s", cfg.Port)
 	log.Printf("Database: connected")
 	log.Printf("Storage type: %s", cfg.Storage.Type)
+	if cfg.Storage.Type == "filesystem" {
+		log.Printf("Storage path: %s", cfg.Storage.BasePath)
+	}
 
 	serverErr := make(chan error, 1)
 	go func() {

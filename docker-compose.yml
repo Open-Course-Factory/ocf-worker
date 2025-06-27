@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: worker_password_2024
       POSTGRES_DB: ocf_worker_db
     ports:
-      - "5433:5432"  # Port différent pour éviter les conflits avec OCF Core
+      - "5433:5432"
     volumes:
       - postgres_worker_data:/var/lib/postgresql/data
       - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -35,14 +35,13 @@ services:
       CLEANUP_INTERVAL: 1h
       ENVIRONMENT: development
     ports:
-      - "8081:8081"  # Port du worker
+      - "8081:8081"
     depends_on:
       postgres-worker:
         condition: service_healthy
     volumes:
       - worker_storage:/app/storage
       - worker_logs:/app/logs
-      - ./storage:/app/storage  # Mount local pour développement
     networks:
       - ocf-worker-network
     restart: unless-stopped
@@ -51,6 +50,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    # Fix: Ensure proper permissions on volumes
+    user: "1001:1001"
 
   # Service optionnel pour le développement avec hot reload
   ocf-worker-dev:
@@ -66,7 +67,7 @@ services:
       STORAGE_PATH: /app/storage
       ENVIRONMENT: development
     ports:
-      - "8082:8081"  # Port différent pour le mode dev
+      - "8082:8081"
     depends_on:
       postgres-worker:
         condition: service_healthy
@@ -76,13 +77,19 @@ services:
     networks:
       - ocf-worker-network
     profiles:
-      - dev  # Démarre seulement avec --profile dev
+      - dev
+    # Fix: Ensure proper permissions
+    user: "1001:1001"
 
 volumes:
   postgres_worker_data:
     driver: local
   worker_storage:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/storage
   worker_logs:
     driver: local
   worker_storage_dev:
