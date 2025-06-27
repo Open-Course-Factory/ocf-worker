@@ -2,8 +2,9 @@ package storage
 
 import (
 	"fmt"
-	
+
 	"ocf-worker/internal/storage/filesystem"
+	"ocf-worker/internal/storage/garage"
 	"ocf-worker/pkg/storage"
 )
 
@@ -13,8 +14,7 @@ func NewStorage(config *storage.StorageConfig) (storage.Storage, error) {
 	case "filesystem":
 		return filesystem.NewFilesystemStorage(config.BasePath)
 	case "garage":
-		// TODO: Implémenter Garage storage
-		return nil, fmt.Errorf("garage storage not implemented yet")
+		return garage.NewGarageStorage(config)
 	default:
 		return nil, fmt.Errorf("unknown storage type: %s", config.Type)
 	}
