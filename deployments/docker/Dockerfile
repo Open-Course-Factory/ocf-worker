@@ -1,3 +1,4 @@
+# deployments/docker/Dockerfile - Fixed version with proper permissions
 # Build stage
 FROM golang:1.23 AS builder
 
@@ -23,19 +24,21 @@ FROM node:24-bookworm-slim
 RUN apt update && apt install -y \
     curl \
     ca-certificates \
-    tzdata
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-# Installer Slidev et Playwright
-RUN npm install -g @slidev/cli playwright-chromium \
-    && npx playwright install-deps \
-    && npm cache clean --force
+# Installer Slidev et Playwright avec dépendances
+RUN npm install -g @slidev/cli@latest playwright-chromium \
+    && npx playwright install-deps chromium \
+    && npm cache clean --force \
+    && npx @slidev/cli --version
 
 # Créer l'utilisateur non-root (Debian)
 RUN groupadd -g 1001 ocfworker \
     && useradd -m -u 1001 -g ocfworker ocfworker
 
-# Créer les répertoires nécessaires
-RUN mkdir -p /app/storage /app/logs \
+# Créer les répertoires nécessaires avec les bonnes permissions
+RUN mkdir -p /app/storage /app/logs /app/workspaces \
     && chown -R ocfworker:ocfworker /app
 
 # Copier le binaire depuis le builder

@@ -1,3 +1,4 @@
+# docker-compose.yml - Updated with worker configuration
 services:
   postgres-worker:
     image: postgres:15-alpine
@@ -34,6 +35,14 @@ services:
       JOB_TIMEOUT: 30m
       CLEANUP_INTERVAL: 1h
       ENVIRONMENT: development
+      # Worker configuration
+      WORKER_COUNT: 3
+      WORKER_POLL_INTERVAL: 5s
+      WORKSPACE_BASE: /app/workspaces  # Utiliser /app/workspaces au lieu de /tmp
+      SLIDEV_COMMAND: "npx @slidev/cli"
+      CLEANUP_WORKSPACE: "true"
+      MAX_WORKSPACE_AGE: 24h
+      DOCKER_CONTAINER: "true"  # Indique qu'on est dans un container
     ports:
       - "8081:8081"
     depends_on:
@@ -42,6 +51,7 @@ services:
     volumes:
       - worker_storage:/app/storage
       - worker_logs:/app/logs
+      - worker_workspaces:/app/workspaces  # Utiliser /app/workspaces
     networks:
       - ocf-worker-network
     restart: unless-stopped
@@ -66,6 +76,14 @@ services:
       STORAGE_TYPE: filesystem
       STORAGE_PATH: /app/storage
       ENVIRONMENT: development
+      # Worker configuration for development
+      WORKER_COUNT: 2
+      WORKER_POLL_INTERVAL: 3s
+      WORKSPACE_BASE: /app/workspaces  # Cohérent avec la production
+      SLIDEV_COMMAND: "npx @slidev/cli"
+      CLEANUP_WORKSPACE: "false"  # Keep workspaces for debugging
+      MAX_WORKSPACE_AGE: 1h
+      DOCKER_CONTAINER: "true"
     ports:
       - "8082:8081"
     depends_on:
@@ -74,12 +92,40 @@ services:
     volumes:
       - .:/app
       - worker_storage_dev:/app/storage
+      - worker_workspaces_dev:/app/workspaces  # Cohérent
     networks:
       - ocf-worker-network
     profiles:
       - dev
     # Fix: Ensure proper permissions
     user: "1001:1001"
+
+  # Service optionnel pour Garage S3 (développement)
+  garage:
+    image: dxflrs/garage:v0.8.4
+    container_name: ocf-worker-garage
+    environment:
+      GARAGE_RPC_SECRET: "1799bccfd7411aba8b219df66c6857cb"
+      GARAGE_ADMIN_TOKEN: "garage-admin-token-2024"
+      GARAGE_METRICS_TOKEN: "garage-metrics-token-2024"
+    ports:
+      - "3900:3900"  # Admin API
+      - "3901:3901"  # Metrics
+      - "3902:3902"  # S3 API
+    volumes:
+      - garage_data:/data
+      - garage_meta:/meta
+      - ./deployments/garage/garage.toml:/etc/garage.toml
+    networks:
+      - ocf-worker-network
+    profiles:
+      - garage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_worker_data:
@@ -92,7 +138,15 @@ volumes:
       device: ${PWD}/storage
   worker_logs:
     driver: local
+  worker_workspaces:
+    driver: local  # Volume pour les workspaces temporaires
   worker_storage_dev:
+    driver: local
+  worker_workspaces_dev:
+    driver: local
+  garage_data:
+    driver: local
+  garage_meta:
     driver: local
 
 networks:
