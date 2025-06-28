@@ -33,20 +33,14 @@ RUN npm install -g @slidev/cli@latest playwright-chromium \
     && npm cache clean --force \
     && npx @slidev/cli --version
 
-# Créer l'utilisateur non-root (Debian)
-RUN groupadd -g 1001 ocfworker \
-    && useradd -m -u 1001 -g ocfworker ocfworker
-
 # Créer les répertoires nécessaires avec les bonnes permissions
 RUN mkdir -p /app/storage /app/logs /app/workspaces \
-    && chown -R ocfworker:ocfworker /app
+    && chown -R node:node /app
 
-# Copier le binaire depuis le builder
 COPY --from=builder /app/ocf-worker /usr/local/bin/ocf-worker
 RUN chmod +x /usr/local/bin/ocf-worker
 
-# Changer vers l'utilisateur non-root
-USER ocfworker
+USER node
 
 WORKDIR /app
 
