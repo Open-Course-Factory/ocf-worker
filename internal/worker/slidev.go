@@ -72,6 +72,21 @@ func (sr *SlidevRunner) Build(ctx context.Context, workspace *Workspace, job *mo
 	result.Logs = append(result.Logs, fmt.Sprintf("Starting command: %s", cmd.String()))
 	result.Logs = append(result.Logs, fmt.Sprintf("Working directory: %s", workspace.GetPath()))
 
+	// Créer un pipe
+	reader, writer := io.Pipe()
+	cmd.Stdin = reader
+
+	// Goroutine pour alimenter le pipe avec des "y"
+	go func() {
+		defer writer.Close()
+		for {
+			_, err := writer.Write([]byte("y\n"))
+			if err != nil {
+				break
+			}
+		}
+	}()
+
 	if err := cmd.Start(); err != nil {
 		return result, fmt.Errorf("failed to start slidev command: %w", err)
 	}
@@ -230,7 +245,7 @@ func (sr *SlidevRunner) prepareBuildCommand(ctx context.Context, workspace *Work
 	slidevCmd := sr.detectSlidevCommand()
 
 	// Arguments pour la build avec répertoire de sortie explicite
-	args := []string{"build", "--out", "dist"}
+	args := []string{"build", "--out", "./dist", "--theme", "@slidev/theme-default"}
 
 	// Vérifier s'il y a un fichier de configuration spécifique
 	if workspace.FileExists("slidev.config.js") || workspace.FileExists("slidev.config.ts") {
@@ -261,6 +276,7 @@ func (sr *SlidevRunner) prepareBuildCommand(ctx context.Context, workspace *Work
 func (sr *SlidevRunner) detectSlidevCommand() string {
 	// Utiliser la configuration si définie
 	if sr.config.SlidevCommand != "" {
+		log.Printf("Detected Config Slidev command: %s", sr.config.SlidevCommand)
 		return sr.config.SlidevCommand
 	}
 
