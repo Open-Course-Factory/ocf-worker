@@ -14,7 +14,7 @@ RUN npm install -g @slidev/cli@latest playwright-chromium \
     && npm cache clean --force
 
 # Stage 2: Runtime avec Go comme environnement principal
-FROM golang:1.23-bookworm
+FROM golang:1.24
 
 # Installer Node.js dans l'environnement Go
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
@@ -51,12 +51,14 @@ USER appuser
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/lib/node_modules/playwright-chromium
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
+RUN go install -v github.com/go-delve/delve/cmd/dlv@latest 
+RUN go install -v golang.org/x/tools/gopls@latest
+
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
 # Exposer les ports
 EXPOSE 8081 3030
-
-# Health check (optionnel)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8081/health || exit 1
 
 # Commande par défaut (peut être surchargée par devcontainer)
 CMD ["bash"]
