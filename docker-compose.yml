@@ -95,37 +95,38 @@ services:
       - worker_workspaces_dev:/app/workspaces  # Cohérent
     networks:
       - ocf-worker-network
-    profiles:
-      - dev
+    profiles: [ "dev"]
     # Fix: Ensure proper permissions
     user: "1001:1001"
 
   # Service optionnel pour Garage S3 (développement)
+  # Service Garage corrigé - remplacer dans docker-compose.yml
   garage:
     image: dxflrs/garage:v0.8.4
     container_name: ocf-worker-garage
     environment:
-      GARAGE_RPC_SECRET: "1799bccfd7411aba8b219df66c6857cb"
+      GARAGE_RPC_SECRET: "4c8e6ca7e6c7d4c5a6e8b9c7e6c5d4c3b2a1e0f9e8d7c6b5a4b3c2d1e0f9e8d7"
       GARAGE_ADMIN_TOKEN: "garage-admin-token-2024"
       GARAGE_METRICS_TOKEN: "garage-metrics-token-2024"
     ports:
-      - "3900:3900"  # Admin API
-      - "3901:3901"  # Metrics
-      - "3902:3902"  # S3 API
+      - "3900:3900"  # S3 API
+      - "3901:3901"  # RPC
+      - "3902:3902"  # S3 Web
+      - "3903:3903"  # Admin API
     volumes:
       - garage_data:/data
       - garage_meta:/meta
       - ./deployments/garage/garage.toml:/etc/garage.toml
     networks:
       - ocf-worker-network
-    profiles:
-      - garage
+    profiles: [ "garage"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3900/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "curl", "-f", "http://localhost:3903/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   postgres_worker_data:
