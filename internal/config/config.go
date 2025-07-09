@@ -1,4 +1,4 @@
-// internal/config/config.go - Updated with worker configuration
+// internal/config/config.go - Version corrigée
 package config
 
 import (
@@ -19,14 +19,13 @@ type Config struct {
 	Worker          *WorkerConfig
 }
 
-// WorkerConfig contient la configuration spécifique au worker
 type WorkerConfig struct {
-	WorkerCount      int           // Nombre de workers simultanés
-	PollInterval     time.Duration // Intervalle de polling des jobs
-	WorkspaceBase    string        // Répertoire de base pour les workspaces
-	SlidevCommand    string        // Commande Slidev
-	CleanupWorkspace bool          // Nettoyer les workspaces après traitement
-	MaxWorkspaceAge  time.Duration // Âge maximum des workspaces avant cleanup
+	WorkerCount      int
+	PollInterval     time.Duration
+	WorkspaceBase    string
+	SlidevCommand    string
+	CleanupWorkspace bool
+	MaxWorkspaceAge  time.Duration
 }
 
 func Load() *Config {
@@ -42,7 +41,7 @@ func Load() *Config {
 		Environment:     getEnv("ENVIRONMENT", "development"),
 		Storage: &storage.StorageConfig{
 			Type:      getEnv("STORAGE_TYPE", "filesystem"),
-			BasePath:  getEnv("STORAGE_PATH", "./storage"),
+			BasePath:  getStorageBasePath(),
 			Endpoint:  getEnv("GARAGE_ENDPOINT", ""),
 			AccessKey: getEnv("GARAGE_ACCESS_KEY", ""),
 			SecretKey: getEnv("GARAGE_SECRET_KEY", ""),
@@ -53,7 +52,51 @@ func Load() *Config {
 	}
 }
 
-// loadWorkerConfig charge la configuration du worker
+// getStorageBasePath détermine le chemin de base pour le storage
+func getStorageBasePath() string {
+	// Si explicitement défini, l'utiliser
+	if path := os.Getenv("STORAGE_PATH"); path != "" {
+		return path
+	}
+	
+	// Sinon, détecter l'environnement
+	if isDockerEnvironment() {
+		return "/app/storage"
+	}
+	
+	return "./storage"
+}
+
+// isDockerEnvironment détecte si on est dans un container Docker
+func isDockerEnvironment() bool {
+	// Vérifier les indicateurs d'environnement Docker
+	if os.Getenv("DOCKER_CONTAINER") != "" {
+		return true
+	}
+	
+	if os.Getenv("ENVIRONMENT") == "development" && dockerFileExists() {
+		return true
+	}
+	
+	// Vérifier si on est dans un container (présence de /.dockerenv)
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	
+	return false
+}
+
+// dockerFileExists vérifie si des fichiers Docker sont présents
+func dockerFileExists() bool {
+	dockerFiles := []string{"docker-compose.yml", "Dockerfile", "deployments/docker/Dockerfile"}
+	for _, file := range dockerFiles {
+		if _, err := os.Stat(file); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func loadWorkerConfig() *WorkerConfig {
 	pollInterval, _ := time.ParseDuration(getEnv("WORKER_POLL_INTERVAL", "5s"))
 	maxWorkspaceAge, _ := time.ParseDuration(getEnv("MAX_WORKSPACE_AGE", "24h"))
@@ -61,11 +104,26 @@ func loadWorkerConfig() *WorkerConfig {
 	return &WorkerConfig{
 		WorkerCount:      getEnvInt("WORKER_COUNT", 3),
 		PollInterval:     pollInterval,
-		WorkspaceBase:    getEnv("WORKSPACE_BASE", "/tmp/ocf-worker"),
+		WorkspaceBase:    getWorkspaceBasePath(),
 		SlidevCommand:    getEnv("SLIDEV_COMMAND", "npx @slidev/cli"),
 		CleanupWorkspace: getEnvBool("CLEANUP_WORKSPACE", true),
 		MaxWorkspaceAge:  maxWorkspaceAge,
 	}
+}
+
+// getWorkspaceBasePath détermine le répertoire de base pour les workspaces
+func getWorkspaceBasePath() string {
+	// Si explicitement défini, l'utiliser
+	if path := os.Getenv("WORKSPACE_BASE"); path != "" {
+		return path
+	}
+	
+	// Sinon, détecter l'environnement
+	if isDockerEnvironment() {
+		return "/app/workspaces"
+	}
+	
+	return "/tmp/ocf-worker"
 }
 
 func getEnv(key, defaultValue string) string {
