@@ -140,7 +140,7 @@ theme: default
 title: OCF Worker Test - Complete Generation
 author: OCF Development Team
 description: Test de génération complète avec le worker OCF
-highlighter: prism
+highlighter: shiki
 lineNumbers: true
 colorSchema: auto
 layout: cover
