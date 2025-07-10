@@ -1,66 +1,58 @@
-# deployments/docker/Dockerfile - Go environment with Slidev
-# Stage 1: Build Node.js dependencies and install Slidev
-FROM node:24-bookworm-slim AS node-builder
+# .devcontainer/Dockerfile - Version robuste et simplifiée
+FROM golang:1.24-bookworm
 
-# Installer les dépendances système pour Node.js
-RUN apt update && apt install -y \
+# Installer les dépendances système
+RUN apt-get update && apt-get install -y \
     curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Installer Slidev et Playwright globalement
-RUN npm install -g @slidev/cli@latest playwright-chromium \
-    && npx playwright install-deps chromium \
-    && npm cache clean --force
-
-# Stage 2: Runtime avec Go comme environnement principal
-FROM golang:1.24
-
-# Installer Node.js dans l'environnement Go
-RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt update && apt install -y \
+    git \
     nodejs \
-    curl \
+    npm \
     ca-certificates \
     tzdata \
-    chromium \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Copier les installations globales de Node.js depuis le stage précédent
-COPY --from=node-builder /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=node-builder /usr/local/bin/slidev /usr/local/bin/slidev
-COPY --from=node-builder /usr/local/bin/playwright /usr/local/bin/playwright
+# Installer Node.js 24 (version plus récente)
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y nodejs
 
-# Créer les liens symboliques nécessaires
-RUN ln -sf /usr/local/lib/node_modules/@slidev/cli/bin/slidev.mjs /usr/local/bin/slidev \
-    && chmod +x /usr/local/bin/slidev
+# Installer les outils globalement
+RUN npm install -g @slidev/cli@latest \
+    && go install github.com/go-delve/delve/cmd/dlv@latest \
+    && go install golang.org/x/tools/gopls@latest \
+    && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-# Créer un utilisateur non-root (optionnel pour devcontainer)
-RUN groupadd -r -g 1000 appuser && useradd -m -r -u 1000 -g appuser -s /bin/bash appuser
+# Créer un utilisateur pour VS Code avec sudo
+RUN groupadd --gid 1000 vscode \
+    && useradd --uid 1000 --gid vscode --shell /bin/bash --create-home vscode \
+    && echo vscode ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/vscode \
+    && chmod 0440 /etc/sudoers.d/vscode
 
-# Créer les répertoires nécessaires
-RUN mkdir -p /app/storage /app/logs /app/workspaces \
-    && chown -R appuser:appuser /app
+# Créer les répertoires de travail
+RUN mkdir -p /workspace \
+    && chown -R vscode:vscode /workspace
 
-# Configuration du workspace
-WORKDIR /app
+RUN mkdir -p /app/logs \
+    && chown -R vscode:vscode /app/logs
+RUN mkdir -p /app/storage \
+    && chown -R vscode:vscode /app/storage
+RUN mkdir -p /app/workspaces \
+    && chown -R vscode:vscode /app/workspaces
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+# Configuration de l'environnement Go pour vscode
+ENV GOPATH=/home/vscode/go
+ENV GOBIN=/home/vscode/go/bin
+ENV PATH="${GOBIN}:${PATH}"
 
-USER appuser
+# Créer les répertoires Go
+RUN mkdir -p /home/vscode/go/{bin,src,pkg} \
+    && chown -R vscode:vscode /home/vscode
 
-# Variables d'environnement pour Playwright
-ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/lib/node_modules/playwright-chromium
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+# Passer à l'utilisateur vscode
+USER vscode
 
-RUN go install -v github.com/go-delve/delve/cmd/dlv@latest 
-RUN go install -v golang.org/x/tools/gopls@latest
+# Définir le répertoire de travail
+WORKDIR /workspace
 
-COPY go.mod go.sum ./
-RUN go mod download && go mod verify
-
-# Exposer les ports
-EXPOSE 8081 3030
-
-# Commande par défaut (peut être surchargée par devcontainer)
-CMD ["bash"]
+# Commande par défaut
+CMD ["sleep", "infinity"]

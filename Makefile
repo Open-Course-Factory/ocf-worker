@@ -390,3 +390,241 @@ help:
 	@echo "  logs-worker          Show worker logs only"
 	@echo ""
 	@echo "For more details, see: make <command>"
+
+
+	# ========================================
+# GARAGE STORAGE COMMANDS (À ajouter au Makefile existant)
+# ========================================
+
+# Détection automatique de docker compose
+DOCKER_COMPOSE_CMD := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
+
+# Démarrer Garage avec le profil
+garage-start:
+	@echo "🚀 Starting Garage with profile..."
+	@$(DOCKER_COMPOSE_CMD) --profile garage up -d garage
+	@echo "⏳ Waiting for Garage to be ready..."
+	@for i in $$(seq 1 90); do \
+		if curl -s --connect-timeout 3 http://localhost:3903/health >/dev/null 2>&1; then \
+			echo "✅ Garage is ready"; \
+			break; \
+		fi; \
+		if [ $$i -eq 90 ]; then \
+			echo "❌ Garage failed to start within 90 seconds"; \
+			$(DOCKER_COMPOSE_CMD) --profile garage logs garage; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+
+# Arrêter Garage
+garage-stop:
+	@echo "🛑 Stopping Garage..."
+	@$(DOCKER_COMPOSE_CMD) --profile garage down
+
+# Configurer Garage pour les tests
+garage-setup-test:
+	@echo "🔧 Setting up Garage for testing..."
+	@echo "Getting Garage node ID..."
+	@for attempt in $$(seq 1 10); do \
+		NODE_ID=$$($(DOCKER_COMPOSE_CMD) exec -T garage /garage node id -q 2>/dev/null | cut -d '@' -f1 | tr -d '\r\n' || true); \
+		if [ -n "$$NODE_ID" ] && [ $${#NODE_ID} -gt 10 ]; then \
+			echo "✅ Node ID obtained: $$NODE_ID"; \
+			break; \
+		fi; \
+		echo "⏳ Waiting for Garage node to be ready... ($$attempt/10)"; \
+		sleep 3; \
+	done; \
+	if [ -z "$$NODE_ID" ]; then \
+		echo "❌ Failed to get node ID"; \
+		exit 1; \
+	fi; \
+	echo "📐 Configuring layout..."; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage layout assign "$$NODE_ID" -z dc1 -c 1 || true; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage layout apply --version 1 || true; \
+	sleep 5; \
+	echo "🔑 Creating test credentials..."; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage key new --name test-key 2>/dev/null || true; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage key import \
+		--name test-key \
+		--access-key-id "GK31c2f218a2e44f485b94239e" \
+		--secret-access-key "4420d99ef7aa26b56b5130ad7913a6a5c77653a5e7a47a3b4c9b8b9c5f8b7b4d" 2>/dev/null || true; \
+	echo "🪣 Creating test bucket..."; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage bucket create "ocf-test" 2>/dev/null || true; \
+	$(DOCKER_COMPOSE_CMD) exec -T garage /garage bucket allow \
+		--read --write "ocf-test" --key test-key 2>/dev/null || true; \
+	echo "✅ Garage setup complete"
+
+# Réinitialiser Garage complètement
+garage-reset:
+	@echo "🧹 Resetting Garage completely..."
+	@$(DOCKER_COMPOSE_CMD) --profile garage down -v
+	@docker volume prune -f
+	@$(MAKE) garage-start
+	@sleep 10
+	@$(MAKE) garage-setup-test
+
+# Statut de Garage
+garage-status:
+	@echo "📊 Garage Status"
+	@echo "================"
+	@echo "🐳 Container status:"
+	@$(DOCKER_COMPOSE_CMD) --profile garage ps
+	@echo ""
+	@echo "🌐 API connectivity:"
+	@if curl -s --connect-timeout 5 http://localhost:3900 >/dev/null 2>&1; then \
+		echo "  ✅ S3 API (port 3900) accessible"; \
+	else \
+		echo "  ❌ S3 API (port 3900) not accessible"; \
+	fi
+	@if curl -s --connect-timeout 5 http://localhost:3903/health >/dev/null 2>&1; then \
+		echo "  ✅ Admin API (port 3903) accessible"; \
+	else \
+		echo "  ❌ Admin API (port 3903) not accessible"; \
+	fi
+	@echo ""
+	@echo "🏗️ Internal status:"
+	@$(DOCKER_COMPOSE_CMD) exec -T garage /garage layout show 2>/dev/null || echo "  ❌ Cannot get layout"
+	@$(DOCKER_COMPOSE_CMD) exec -T garage /garage key list 2>/dev/null || echo "  ❌ Cannot list keys"
+	@$(DOCKER_COMPOSE_CMD) exec -T garage /garage bucket list 2>/dev/null || echo "  ❌ Cannot list buckets"
+
+# Logs de Garage
+garage-logs:
+	@echo "📝 Garage logs:"
+	@$(DOCKER_COMPOSE_CMD) --profile garage logs --tail=50 garage
+
+# Debug de Garage avec informations détaillées
+garage-debug:
+	@echo "🔍 Garage Debug Information"
+	@echo "=========================="
+	@$(MAKE) garage-status
+	@echo ""
+	@echo "📦 Network information:"
+	@$(DOCKER_COMPOSE_CMD) exec -T garage ip addr show 2>/dev/null | grep -E "(inet|UP)" || echo "Cannot get network info"
+	@echo ""
+	@echo "🔌 Port test:"
+	@for port in 3900 3901 3902 3903; do \
+		if nc -z localhost $$port 2>/dev/null; then \
+			echo "  ✅ Port $$port accessible"; \
+		else \
+			echo "  ❌ Port $$port not accessible"; \
+		fi; \
+	done
+	@echo ""
+	@echo "📄 Configuration:"
+	@if [ -f "deployments/garage/garage.toml" ]; then \
+		echo "✅ garage.toml exists"; \
+		echo "Key configuration:"; \
+		grep -E "(rpc_secret|api_bind_addr|s3_region)" deployments/garage/garage.toml; \
+	else \
+		echo "❌ garage.toml missing"; \
+	fi
+	@echo ""
+	@echo "📝 Recent logs:"
+	@$(DOCKER_COMPOSE_CMD) --profile garage logs --tail=20 garage
+
+# Test complet de Garage
+garage-test-full:
+	@echo "🧪 Complete Garage Test"
+	@echo "======================="
+	@$(MAKE) garage-start
+	@sleep 10
+	@$(MAKE) garage-setup-test
+	@sleep 5
+	@if [ -f "test_storage_api.sh" ]; then \
+		chmod +x test_storage_api.sh; \
+		./test_storage_api.sh garage; \
+	else \
+		echo "❌ test_storage_api.sh not found"; \
+	fi
+
+# Démarrer tous les services avec Garage
+start-all:
+	@echo "🚀 Starting all services including Garage..."
+	@$(DOCKER_COMPOSE_CMD) up -d
+	@$(DOCKER_COMPOSE_CMD) --profile garage up -d
+	@echo "⏳ Waiting for services to be ready..."
+	@sleep 15
+	@$(MAKE) garage-setup-test
+
+# Arrêter tous les services
+stop-all:
+	@echo "🛑 Stopping all services..."
+	@$(DOCKER_COMPOSE_CMD) down
+	@$(DOCKER_COMPOSE_CMD) --profile garage down
+	@$(DOCKER_COMPOSE_CMD) --profile dev down
+
+# ========================================
+# TESTS STORAGE AVEC GARAGE (mis à jour)
+# ========================================
+
+# Test storage API avec configuration appropriée
+test-storage-api:
+	@echo "🧪 Testing storage API with filesystem backend..."
+	@if ! $(DOCKER_COMPOSE_CMD) ps | grep -q "ocf-worker.*Up"; then \
+		echo "❌ OCF Worker not running. Starting services..."; \
+		$(DOCKER_COMPOSE_CMD) up -d; \
+		sleep 10; \
+	fi
+	@if [ -f "test_storage_api.sh" ]; then \
+		chmod +x test_storage_api.sh; \
+		./test_storage_api.sh filesystem; \
+	else \
+		echo "❌ test_storage_api.sh not found"; \
+		exit 1; \
+	fi
+
+# Test storage Garage avec configuration cohérente
+test-storage-garage:
+	@echo "🚀 Testing Garage storage with consistent configuration..."
+	@if ! $(DOCKER_COMPOSE_CMD) --profile garage ps | grep -q "garage.*Up"; then \
+		echo "🚀 Starting Garage first..."; \
+		$(MAKE) garage-start; \
+		sleep 10; \
+		$(MAKE) garage-setup-test; \
+		sleep 5; \
+	fi
+	@if [ -f "test_storage_api.sh" ]; then \
+		chmod +x test_storage_api.sh; \
+		./test_storage_api.sh garage; \
+	else \
+		echo "❌ test_storage_api.sh not found"; \
+		exit 1; \
+	fi
+
+# Test des deux backends en séquence
+test-storage-both:
+	@echo "🔄 Testing both storage backends sequentially..."
+	@echo ""
+	@echo "1️⃣ Testing filesystem storage..."
+	@$(MAKE) test-storage-api
+	@echo ""
+	@echo "2️⃣ Testing Garage storage..."
+	@$(MAKE) test-storage-garage
+	@echo ""
+	@echo "✅ Both storage backends tested successfully!"
+
+# ========================================
+# AIDE MISE À JOUR
+# ========================================
+
+help-garage:
+	@echo ""
+	@echo "🚀 Garage Storage Commands:"
+	@echo "  garage-start             Start Garage service"
+	@echo "  garage-stop              Stop Garage service"
+	@echo "  garage-setup-test        Configure Garage for testing"
+	@echo "  garage-reset             Reset Garage completely"
+	@echo "  garage-status            Show Garage status"
+	@echo "  garage-logs              Show Garage logs"
+	@echo "  garage-debug             Debug Garage with detailed info"
+	@echo "  garage-test-full         Complete Garage test"
+	@echo ""
+	@echo "🔄 Service Management:"
+	@echo "  start-all                Start all services (including Garage)"
+	@echo "  stop-all                 Stop all services"
+	@echo ""
+	@echo "🧪 Storage Testing:"
+	@echo "  test-storage-api         Test filesystem storage"
+	@echo "  test-storage-garage      Test Garage storage"
+	@echo "  test-storage-both        Test both storage backends"

@@ -17,7 +17,7 @@ import (
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/worker"
 
-	"github.com/joho/godotenv"
+	"github.com/lpernett/godotenv"
 )
 
 func main() {
@@ -88,9 +88,10 @@ func main() {
 	log.Printf("Workspace base: %s", workerConfig.WorkspaceBase)
 	log.Printf("Job timeout: %v", workerConfig.JobTimeout)
 
-	if cfg.Storage.Type == "filesystem" {
+	switch cfg.Storage.Type {
+	case "filesystem":
 		log.Printf("Storage path: %s", cfg.Storage.BasePath)
-	} else if cfg.Storage.Type == "garage" {
+	case "garage":
 		log.Printf("Garage endpoint: %s", cfg.Storage.Endpoint)
 		log.Printf("Garage bucket: %s", cfg.Storage.Bucket)
 	}

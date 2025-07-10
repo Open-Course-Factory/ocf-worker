@@ -36,7 +36,7 @@ services:
       ENVIRONMENT: development
       
       # Storage - Default to filesystem, change to garage if needed
-      STORAGE_TYPE: filesystem
+      STORAGE_TYPE: garage
       STORAGE_PATH: /app/storage
       
       # Garage Configuration (used when STORAGE_TYPE=garage)
@@ -76,44 +76,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Service optionnel pour le développement avec hot reload
-  ocf-worker-dev:
-    build:
-      context: .
-      dockerfile: deployments/docker/Dockerfile.dev
-    container_name: ocf-worker-dev
-    environment:
-      DATABASE_URL: postgres://ocf_worker:worker_password_2024@postgres-worker:5432/ocf_worker_db?sslmode=disable
-      PORT: 8081
-      LOG_LEVEL: debug
-      STORAGE_TYPE: filesystem
-      STORAGE_PATH: /app/storage
-      ENVIRONMENT: development
-      # Worker configuration for development
-      WORKER_COUNT: 2
-      WORKER_POLL_INTERVAL: 3s
-      WORKSPACE_BASE: /app/workspaces  # Cohérent avec la production
-      SLIDEV_COMMAND: "npx @slidev/cli"
-      CLEANUP_WORKSPACE: "false"  # Keep workspaces for debugging
-      MAX_WORKSPACE_AGE: 1h
-      DOCKER_CONTAINER: "true"
-    ports:
-      - "8082:8081"
-    depends_on:
-      postgres-worker:
-        condition: service_healthy
-    volumes:
-      - .:/app
-      - worker_storage_dev:/app/storage
-      - worker_workspaces_dev:/app/workspaces  # Cohérent
-    networks:
-      - ocf-worker-network
-    profiles: [ "dev"]
-    # Fix: Ensure proper permissions
-    user: "1001:1001"
-
   # Service optionnel pour Garage S3 (développement)
-  # Service Garage corrigé - remplacer dans docker-compose.yml
   garage:
     image: dxflrs/garage:v0.8.4
     container_name: ocf-worker-garage
@@ -153,10 +116,6 @@ volumes:
   worker_logs:
     driver: local
   worker_workspaces:
-    driver: local  # Volume pour les workspaces temporaires
-  worker_storage_dev:
-    driver: local
-  worker_workspaces_dev:
     driver: local
   garage_data:
     driver: local
@@ -165,5 +124,3 @@ volumes:
 
 networks:
   ocf-worker-network:
-    driver: bridge
-    name: ocf-worker-net

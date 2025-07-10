@@ -1,0 +1,45 @@
+{
+  "go.gopath": "/home/vscode/go",
+  "go.goroot": "/usr/local/go",
+  "go.toolsManagement.checkForUpdates": "local",
+  "go.useLanguageServer": true,
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "package",
+  "go.formatTool": "goimports",
+  "go.testFlags": ["-v"],
+  "go.buildFlags": [],
+  "go.vetFlags": [],
+  "go.coverOnSave": false,
+  "go.coverOnSingleTest": true,
+  "go.coverageDecorator": {
+    "type": "gutter",
+    "coveredHighlightColor": "rgba(64,128,64,0.5)",
+    "uncoveredHighlightColor": "rgba(128,64,64,0.25)"
+  },
+  "go.delveConfig": {
+    "dlvLoadConfig": {
+      "followPointers": true,
+      "maxVariableRecurse": 1,
+      "maxStringLen": 64,
+      "maxArrayValues": 64,
+      "maxStructFields": -1
+    },
+    "apiVersion": 2,
+    "stackTraceDepth": 50,
+    "showGlobalVariables": false
+  },
+  "files.exclude": {
+    "**/bin": true,
+    "**/tmp": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/storage": false,
+    "**/logs": false
+  },
+  "terminal.integrated.cwd": "/workspace",
+  "terminal.integrated.env.linux": {
+    "GOPATH": "/home/vscode/go",
+    "PATH": "/home/vscode/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  }
+}

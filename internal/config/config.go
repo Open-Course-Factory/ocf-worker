@@ -2,6 +2,7 @@
 package config
 
 import (
+	"log"
 	"ocf-worker/pkg/storage"
 	"os"
 	"strconv"
@@ -32,6 +33,10 @@ func Load() *Config {
 	timeout, _ := time.ParseDuration(getEnv("JOB_TIMEOUT", "30m"))
 	cleanup, _ := time.ParseDuration(getEnv("CLEANUP_INTERVAL", "1h"))
 
+	log.Printf("DEBUG: PORT=%s", os.Getenv("PORT"))
+	log.Printf("DEBUG: DATABASE_URL=%s", os.Getenv("DATABASE_URL"))
+	log.Printf("DEBUG: STORAGE_TYPE=%s", os.Getenv("STORAGE_TYPE"))
+
 	return &Config{
 		Port:            getEnv("PORT", "8081"),
 		DatabaseURL:     getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/generation_service?sslmode=disable"),
@@ -58,12 +63,12 @@ func getStorageBasePath() string {
 	if path := os.Getenv("STORAGE_PATH"); path != "" {
 		return path
 	}
-	
+
 	// Sinon, détecter l'environnement
 	if isDockerEnvironment() {
 		return "/app/storage"
 	}
-	
+
 	return "./storage"
 }
 
@@ -73,16 +78,16 @@ func isDockerEnvironment() bool {
 	if os.Getenv("DOCKER_CONTAINER") != "" {
 		return true
 	}
-	
+
 	if os.Getenv("ENVIRONMENT") == "development" && dockerFileExists() {
 		return true
 	}
-	
+
 	// Vérifier si on est dans un container (présence de /.dockerenv)
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -117,12 +122,12 @@ func getWorkspaceBasePath() string {
 	if path := os.Getenv("WORKSPACE_BASE"); path != "" {
 		return path
 	}
-	
+
 	// Sinon, détecter l'environnement
 	if isDockerEnvironment() {
 		return "/app/workspaces"
 	}
-	
+
 	return "/tmp/ocf-worker"
 }
 

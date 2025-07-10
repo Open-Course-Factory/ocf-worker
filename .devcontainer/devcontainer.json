@@ -68,8 +68,8 @@
 	// "remoteUser": "ocf"
 
 	"containerEnv": {
-		"HOME": "/home/appuser"
+		"HOME": "/home/vscode"
 	},
 	
-	"containerUser": "appuser"
+	"containerUser": "vscode"
 }
