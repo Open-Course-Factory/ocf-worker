@@ -32,8 +32,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func TestGarageStorageIntegration(t *testing.T) {
-	// Ces tests nécessitent un serveur MinIO/Garage en cours d'exécution
-	// Exécuter avec: docker run --rm -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ":9001"
 
 	if os.Getenv("SKIP_INTEGRATION_TESTS") != "" {
 		t.Skip("Skipping integration tests")

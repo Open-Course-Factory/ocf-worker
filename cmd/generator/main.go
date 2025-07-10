@@ -23,7 +23,7 @@ import (
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found: %v", err)
+		log.Printf("Info: .env file not found, using environment variables: %v", err)
 	}
 
 	// Load configuration

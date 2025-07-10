@@ -35,10 +35,14 @@ RUN npm install -g @slidev/cli@latest playwright-chromium \
 
 # Créer les répertoires nécessaires avec les bonnes permissions
 RUN mkdir -p /app/storage /app/logs /app/workspaces \
-    && chown -R node:node /app
+    && chown -R node:node /app \
+    && chmod -R 755 /app/storage /app/logs /app/workspaces
 
 COPY --from=builder /app/ocf-worker /usr/local/bin/ocf-worker
 RUN chmod +x /usr/local/bin/ocf-worker
+
+# S'assurer que node peut écrire dans les répertoires après la copie
+RUN chown -R node:node /app/storage /app/logs /app/workspaces
 
 USER node
 

@@ -45,6 +45,8 @@ RUN mkdir -p /app/storage /app/logs /app/workspaces \
 # Configuration du workspace
 WORKDIR /app
 
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
 USER appuser
 
 # Variables d'environnement pour Playwright
