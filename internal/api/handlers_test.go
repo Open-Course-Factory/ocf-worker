@@ -24,21 +24,21 @@ func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService) 
 	// Créer un répertoire temporaire pour le storage de test
 	tempDir, err := os.MkdirTemp("", "ocf-test-storage-*")
 	require.NoError(t, err)
-	
+
 	// Cleanup après le test
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)
 	})
-	
+
 	// Créer le storage service
 	storageBackend, err := filesystem.NewFilesystemStorage(tempDir)
 	require.NoError(t, err)
 	storageService := storage.NewStorageService(storageBackend)
-	
+
 	// Pour les tests, on utilise un mock du job repository
 	mockRepo := &mockJobRepository{}
 	jobService := jobs.NewJobServiceImpl(mockRepo)
-	
+
 	return jobService, storageService
 }
 
@@ -135,7 +135,7 @@ func TestCreateJobEndpoint(t *testing.T) {
 		JobID:       jobID,
 		CourseID:    courseID,
 		SourcePath:  "courses/pending/" + jobID.String(),
-		CallbackURL: "http://localhost:8080/api/v1/generations/" + jobID.String() + "/status",
+		CallbackURL: "http://localhost:8080/api/v1/jobs/" + jobID.String(),
 	}
 
 	jsonBody, _ := json.Marshal(reqBody)
@@ -215,7 +215,7 @@ func TestStorageInfoEndpoint(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "configured", response["storage_type"])
-	
+
 	// Vérifier que les endpoints sont présents
 	endpoints, ok := response["endpoints"].(map[string]interface{})
 	assert.True(t, ok)
@@ -231,7 +231,7 @@ func TestListJobs(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		jobID := uuid.New()
 		courseID := uuid.New()
-		
+
 		reqBody := models.GenerationRequest{
 			JobID:      jobID,
 			CourseID:   courseID,
@@ -257,7 +257,7 @@ func TestListJobs(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
-	
+
 	jobs, ok := response["jobs"].([]interface{})
 	assert.True(t, ok)
 	assert.Len(t, jobs, 3)

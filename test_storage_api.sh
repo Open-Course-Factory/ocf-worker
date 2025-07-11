@@ -309,7 +309,7 @@ JOB_RESPONSE=$(curl -s -X POST http://localhost:8081/api/v1/generate \
     \"job_id\": \"$JOB_ID\",
     \"course_id\": \"$COURSE_ID\",
     \"source_path\": \"sources/$JOB_ID/\",
-    \"callback_url\": \"http://localhost:8080/api/v1/generations/$JOB_ID/status\",
+    \"callback_url\": \"http://localhost:8080/api/v1/jobs/$JOB_ID\",
     \"metadata\": {
       \"storage_backend\": \"$STORAGE_BACKEND\",
       \"test_run\": true,

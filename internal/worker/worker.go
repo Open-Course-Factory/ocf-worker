@@ -25,13 +25,15 @@ type Worker struct {
 	config         *PoolConfig
 	processor      *JobProcessor
 
-	// Statistiques
+	// État du worker - protégé par mutex
+	mu           sync.RWMutex
 	status       string
 	currentJobID uuid.UUID
-	jobsTotal    int64
-	jobsSuccess  int64
-	jobsFailed   int64
-	mu           sync.RWMutex
+
+	// Statistiques - utiliser atomic pour éviter les locks
+	jobsTotal   int64
+	jobsSuccess int64
+	jobsFailed  int64
 }
 
 // NewWorker crée un nouveau worker
@@ -48,35 +50,31 @@ func NewWorker(
 		config:         config,
 		processor:      NewJobProcessor(jobService, storageService, config),
 		status:         "idle",
+		currentJobID:   uuid.Nil,
 	}
 }
 
-// Start démarre le worker et écoute la queue des jobs
-func (w *Worker) Start(ctx context.Context, jobQueue <-chan *models.GenerationJob) {
-	log.Printf("Worker %d starting", w.id)
+// setState met à jour l'état du worker de manière atomique
+func (w *Worker) setState(status string, jobID uuid.UUID) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("Worker %d stopped due to context cancellation", w.id)
-			w.setStatus("stopped")
-			return
-		case job, ok := <-jobQueue:
-			if !ok {
-				log.Printf("Worker %d stopped - job queue closed", w.id)
-				w.setStatus("stopped")
-				return
-			}
-
-			w.processJob(ctx, job)
-		}
-	}
+	w.status = status
+	w.currentJobID = jobID
 }
 
-// processJob traite un job individuel
+// getState retourne l'état actuel du worker
+func (w *Worker) getState() (string, uuid.UUID) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	return w.status, w.currentJobID
+}
+
+// processJob traite un job individuel - VERSION CORRIGÉE
 func (w *Worker) processJob(ctx context.Context, job *models.GenerationJob) {
-	w.setCurrentJob(job.ID)
-	w.setStatus("busy")
+	// Mise à jour atomique de l'état
+	w.setState("busy", job.ID)
 	atomic.AddInt64(&w.jobsTotal, 1)
 
 	log.Printf("Worker %d processing job %s (course: %s)", w.id, job.ID, job.CourseID)
@@ -97,41 +95,48 @@ func (w *Worker) processJob(ctx context.Context, job *models.GenerationJob) {
 		log.Printf("Worker %d failed job %s: %v", w.id, job.ID, result.Error)
 	}
 
-	// Nettoyer l'état du worker
-	w.setCurrentJob(uuid.Nil)
-	w.setStatus("idle")
+	// Nettoyer l'état du worker - atomique
+	w.setState("idle", uuid.Nil)
 }
 
-// setStatus met à jour le statut du worker
-func (w *Worker) setStatus(status string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.status = status
-}
-
-// setCurrentJob met à jour le job actuel
-func (w *Worker) setCurrentJob(jobID uuid.UUID) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.currentJobID = jobID
-}
-
-// GetStats retourne les statistiques du worker
+// GetStats retourne les statistiques du worker - VERSION CORRIGÉE
 func (w *Worker) GetStats() WorkerStatsInternal {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
+	// Récupérer l'état de manière thread-safe
+	status, currentJobID := w.getState()
 
 	currentJobIDStr := ""
-	if w.currentJobID != uuid.Nil {
-		currentJobIDStr = w.currentJobID.String()
+	if currentJobID != uuid.Nil {
+		currentJobIDStr = currentJobID.String()
 	}
 
 	return WorkerStatsInternal{
-		Status:       w.status,
+		Status:       status,
 		CurrentJobID: currentJobIDStr,
 		JobsTotal:    atomic.LoadInt64(&w.jobsTotal),
 		JobsSuccess:  atomic.LoadInt64(&w.jobsSuccess),
 		JobsFailed:   atomic.LoadInt64(&w.jobsFailed),
+	}
+}
+
+// Start démarre le worker et écoute la queue des jobs
+func (w *Worker) Start(ctx context.Context, jobQueue <-chan *models.GenerationJob) {
+	log.Printf("Worker %d starting", w.id)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Worker %d stopped due to context cancellation", w.id)
+			w.setState("stopped", uuid.Nil)
+			return
+		case job, ok := <-jobQueue:
+			if !ok {
+				log.Printf("Worker %d stopped - job queue closed", w.id)
+				w.setState("stopped", uuid.Nil)
+				return
+			}
+
+			w.processJob(ctx, job)
+		}
 	}
 }
 

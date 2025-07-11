@@ -412,7 +412,7 @@ test_complete_workflow() {
         \"job_id\": \"$JOB_ID\",
         \"course_id\": \"$COURSE_ID\",
         \"source_path\": \"sources/$JOB_ID/\",
-        \"callback_url\": \"http://localhost:8080/api/v1/generations/$JOB_ID/status\",
+        \"callback_url\": \"http://localhost:8080/api/v1/jobs/$JOB_ID\",
         \"metadata\": {
           \"test_type\": \"complete_workflow\",
           \"storage_backend\": \"$STORAGE_BACKEND\",
