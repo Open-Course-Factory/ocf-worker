@@ -32,30 +32,8 @@ func (h *Handlers) Health(c *gin.Context) {
 
 // Create a new generation job
 func (h *Handlers) CreateJob(c *gin.Context) {
-	validator := GetValidator(c)
-	if validator == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
-		return
-	}
-
-	var req models.GenerationRequest
-
-	// Validation JSON basique
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format", "details": err.Error()})
-		return
-	}
-
-	// validation avec le système structuré
-	validationResult := validator.ValidateGenerationRequest(&req)
-	if !validationResult.Valid {
-		// Formater les erreurs de validation pour l'API
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "Validation failed",
-			"validation_errors": validationResult.Errors,
-		})
-		return
-	}
+	// Récupérer la requête déjà validée
+	req := c.MustGet("validated_request").(models.GenerationRequest)
 
 	log.Printf("Creating job with ID: %s, Course ID: %s", req.JobID, req.CourseID)
 
@@ -72,26 +50,10 @@ func (h *Handlers) CreateJob(c *gin.Context) {
 
 // Get job status
 func (h *Handlers) GetJobStatus(c *gin.Context) {
-	validator := GetValidator(c)
-	if validator == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
-		return
-	}
+	// Récupérer l'UUID déjà validé et parsé
+	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 
-	jobIDStr := c.Param("id")
-	log.Printf("Retrieving job status for ID: %s", jobIDStr)
-
-	jobID, validationResult := validator.ValidateJobIDParam(jobIDStr)
-	if !validationResult.Valid {
-		log.Printf("Invalid job ID format: %s", jobIDStr)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "Invalid job ID",
-			"validation_errors": validationResult.Errors,
-		})
-		return
-	}
-
-	log.Printf("Parsed job ID: %s", jobID)
+	log.Printf("Retrieving job status for ID: %s", jobID)
 
 	job, err := h.jobService.GetJob(c.Request.Context(), jobID)
 	if err != nil {

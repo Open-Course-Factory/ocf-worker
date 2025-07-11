@@ -49,27 +49,52 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 	api := r.Group("/api/v1")
 	{
 		// Routes des jobs
-		api.POST("/generate", jobHandlers.CreateJob)
-		api.GET("/jobs/:id", jobHandlers.GetJobStatus)
+		api.POST("/generate",
+			validation.ParseGenerationRequest(),
+			validation.ValidateRequest(validation.ValidateGenerationRequest),
+			jobHandlers.CreateJob)
+		api.GET("/jobs/:id",
+			validation.ValidateRequest(validation.ValidateJobIDParam("id")),
+			jobHandlers.GetJobStatus)
 		api.GET("/jobs", jobHandlers.ListJobs)
 
 		// Routes du storage
 		storage := api.Group("/storage")
 		{
-			// Info storage
 			storage.GET("/info", storageHandlers.GetStorageInfo)
 
-			// Sources des jobs
-			storage.POST("/jobs/:job_id/sources", storageHandlers.UploadJobSources)
-			storage.GET("/jobs/:job_id/sources", storageHandlers.ListJobSources)
-			storage.GET("/jobs/:job_id/sources/:filename", storageHandlers.DownloadJobSource)
+			storage.POST("/jobs/:job_id/sources",
+				validation.ValidateRequest(
+					validation.ValidateJobIDParam("job_id"),
+					validation.ValidateFileUpload,
+				),
+				storageHandlers.UploadJobSources)
 
-			// Résultats des cours
-			storage.GET("/courses/:course_id/results", storageHandlers.ListResults)
-			storage.GET("/courses/:course_id/results/:filename", storageHandlers.DownloadResult)
+			storage.GET("/jobs/:job_id/sources",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				storageHandlers.ListJobSources)
 
-			// Logs des jobs
-			storage.GET("/jobs/:job_id/logs", storageHandlers.GetJobLogs)
+			storage.GET("/jobs/:job_id/sources/:filename",
+				validation.ValidateRequest(
+					validation.ValidateJobIDParam("job_id"),
+					validation.ValidateFilenameParam("filename"),
+				),
+				storageHandlers.DownloadJobSource)
+
+			storage.GET("/courses/:course_id/results",
+				validation.ValidateRequest(validation.ValidateCourseIDParam("course_id")),
+				storageHandlers.ListResults)
+
+			storage.GET("/courses/:course_id/results/:filename",
+				validation.ValidateRequest(
+					validation.ValidateCourseIDParam("course_id"),
+					validation.ValidateFilenameParam("filename"),
+				),
+				storageHandlers.DownloadResult)
+
+			storage.GET("/jobs/:job_id/logs",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				storageHandlers.GetJobLogs)
 		}
 
 		workerAPI := api.Group("/worker")

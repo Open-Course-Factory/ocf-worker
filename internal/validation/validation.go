@@ -48,6 +48,7 @@ func DefaultValidationConfig() *ValidationConfig {
 			".txt":   true, // Texte
 			".yml":   true, // YAML
 			".yaml":  true,
+			".html":  true,
 		},
 		AllowedMimeTypes: map[string]bool{
 			"text/plain":               true,
@@ -330,9 +331,9 @@ func (vs *ValidationService) ValidateCallbackURL(url string) *ValidationResult {
 	}
 
 	// Interdire les URLs localhost/127.0.0.1 en production
-	if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") || strings.Contains(url, "0.0.0.0") {
-		result.AddError("callback_url", url, "localhost URLs not allowed", "LOCALHOST_NOT_ALLOWED")
-	}
+	// if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") || strings.Contains(url, "0.0.0.0") {
+	// 	result.AddError("callback_url", url, "localhost URLs not allowed", "LOCALHOST_NOT_ALLOWED")
+	// }
 
 	return result
 }
