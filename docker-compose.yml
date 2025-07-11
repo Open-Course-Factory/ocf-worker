@@ -103,16 +103,26 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "8888:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_ADDRESS: "0.0.0.0"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    networks:
+      - ocf-worker-network
 
 volumes:
+  pgadmin:
+    driver: local
   postgres_worker_data:
     driver: local
   worker_storage:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/storage
   worker_logs:
     driver: local
   worker_workspaces:

@@ -20,7 +20,8 @@ import (
 
 // SlidevRunner exécute les commandes Slidev
 type SlidevRunner struct {
-	config *PoolConfig
+	config       *PoolConfig
+	themeManager *ThemeManager
 }
 
 // SlidevResult contient le résultat de l'exécution Slidev
@@ -35,8 +36,48 @@ type SlidevResult struct {
 // NewSlidevRunner crée un nouveau runner Slidev
 func NewSlidevRunner(config *PoolConfig) *SlidevRunner {
 	return &SlidevRunner{
-		config: config,
+		config:       config,
+		themeManager: NewThemeManager(config.WorkspaceBase),
 	}
+}
+
+func (sr *SlidevRunner) InstallMissingThemes(ctx context.Context, workspace *Workspace, job *models.GenerationJob) error {
+	log.Printf("Job %s: Checking for missing themes...", job.ID)
+
+	// Auto-installer les thèmes manquants
+	results, err := sr.themeManager.AutoInstallMissingThemes(ctx, workspace)
+	if err != nil {
+		return fmt.Errorf("failed to auto-install themes: %w", err)
+	}
+
+	if len(results) == 0 {
+		log.Printf("Job %s: No missing themes detected", job.ID)
+		return nil
+	}
+
+	// Vérifier les résultats
+	var failedThemes []string
+	var successThemes []string
+
+	for _, result := range results {
+		if result.Success {
+			successThemes = append(successThemes, result.Theme)
+			log.Printf("Job %s: Successfully installed theme: %s", job.ID, result.Theme)
+		} else {
+			failedThemes = append(failedThemes, result.Theme)
+			log.Printf("Job %s: Failed to install theme: %s - %s", job.ID, result.Theme, result.Error)
+		}
+	}
+
+	if len(successThemes) > 0 {
+		log.Printf("Job %s: Installed %d themes: %v", job.ID, len(successThemes), successThemes)
+	}
+
+	if len(failedThemes) > 0 {
+		return fmt.Errorf("failed to install %d themes: %v", len(failedThemes), failedThemes)
+	}
+
+	return nil
 }
 
 // Build exécute `slidev build` dans le workspace avec validation améliorée
@@ -51,6 +92,15 @@ func (sr *SlidevRunner) Build(ctx context.Context, workspace *Workspace, job *mo
 	if err := sr.checkPrerequisites(ctx, workspace, job); err != nil {
 		result.Logs = append(result.Logs, fmt.Sprintf("ERROR: Prerequisites check failed: %v", err))
 		return result, fmt.Errorf("prerequisites check failed: %w", err)
+	}
+
+	result.Logs = append(result.Logs, "Checking and installing missing themes...")
+	if err := sr.InstallMissingThemes(ctx, workspace, job); err != nil {
+		result.Logs = append(result.Logs, fmt.Sprintf("WARNING: Theme installation failed: %v", err))
+		// On continue quand même, car les thèmes peuvent être optionnels
+		log.Printf("Job %s: Theme installation failed but continuing: %v", job.ID, err)
+	} else {
+		result.Logs = append(result.Logs, "Theme installation completed successfully")
 	}
 
 	// Préparer la commande Slidev

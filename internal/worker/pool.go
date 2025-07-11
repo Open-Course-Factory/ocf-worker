@@ -220,6 +220,10 @@ func (p *WorkerPool) GetStats() PoolStats {
 	return stats
 }
 
+func (p *WorkerPool) GetConfig() *PoolConfig {
+	return p.config
+}
+
 // PoolStats contient les statistiques du pool
 type PoolStats struct {
 	WorkerCount   int           `json:"worker_count"`

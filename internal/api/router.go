@@ -32,6 +32,7 @@ func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.S
 	jobHandlers := NewHandlers(jobService)
 	storageHandlers := NewStorageHandlers(storageService)
 	workerHandlers := NewWorkerHandlers(workerPool)
+	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
 
 	// Routes principales
 	r.GET("/health", jobHandlers.Health)
@@ -71,6 +72,12 @@ func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.S
 			workerAPI.GET("/workspaces/:job_id", workerHandlers.GetWorkspaceInfo)
 			workerAPI.DELETE("/workspaces/:job_id", workerHandlers.CleanupWorkspace)
 			workerAPI.POST("/workspaces/cleanup", workerHandlers.CleanupOldWorkspaces)
+		}
+
+		themeAPI := api.Group("/themes")
+		{
+			themeAPI.GET("/available", themeHandlers.ListAvailableThemes)
+			themeAPI.GET("/jobs/:job_id/detect", themeHandlers.DetectThemes)
 		}
 	}
 
