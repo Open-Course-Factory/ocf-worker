@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,7 @@ import (
 type ThemeManager struct {
 	workspaceBase string
 	npmCommand    string
+	mu            sync.RWMutex
 }
 
 // ThemeInfo contient les informations sur un thème
@@ -38,6 +40,15 @@ type ThemeInstallResult struct {
 	Duration  time.Duration `json:"duration"`
 	Logs      []string      `json:"logs"`
 	Installed bool          `json:"installed"`
+	ExitCode  int           `json:"exit_code,omitempty"`
+	pipes     *installPipes `json:"-"` // Non exporté
+}
+
+// installPipes structure pour gérer les pipes de manière centralisée
+type installPipes struct {
+	stdout io.ReadCloser
+	stderr io.ReadCloser
+	stdin  io.WriteCloser
 }
 
 // NewThemeManager crée un nouveau gestionnaire de thèmes
@@ -150,126 +161,6 @@ func (tm *ThemeManager) isThemeInstalled(ctx context.Context, workspace *Workspa
 	return workspace.DirExists(nodeModulesPath)
 }
 
-// InstallTheme installe un thème Slidev
-func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, theme string) (*ThemeInstallResult, error) {
-	startTime := time.Now()
-	result := &ThemeInstallResult{
-		Theme:   theme,
-		Success: false,
-		Logs:    []string{},
-	}
-
-	log.Printf("Installing Slidev theme: %s", theme)
-	result.Logs = append(result.Logs, fmt.Sprintf("Starting installation of theme: %s", theme))
-
-	// Normaliser le nom du thème
-	normalizedTheme := tm.normalizeThemeName(theme)
-	result.Theme = normalizedTheme
-
-	// Préparer la commande d'installation
-	var cmd *exec.Cmd
-	if tm.npmCommand == "yarn" {
-		cmd = exec.CommandContext(ctx, "yarn", "add", normalizedTheme)
-	} else {
-		cmd = exec.CommandContext(ctx, "npm", "install", normalizedTheme, "--save")
-	}
-
-	cmd.Dir = workspace.GetPath()
-	cmd.Env = tm.buildInstallEnvironment()
-
-	// Configurer les pipes pour capturer la sortie
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		result.Error = fmt.Sprintf("Failed to create stdout pipe: %v", err)
-		return result, err
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		result.Error = fmt.Sprintf("Failed to create stderr pipe: %v", err)
-		return result, err
-	}
-
-	// Configurer stdin pour répondre automatiquement aux prompts
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		result.Error = fmt.Sprintf("Failed to create stdin pipe: %v", err)
-		return result, err
-	}
-
-	// Démarrer la commande
-	if err := cmd.Start(); err != nil {
-		result.Error = fmt.Sprintf("Failed to start installation command: %v", err)
-		return result, err
-	}
-
-	// Goroutine pour répondre aux prompts automatiquement
-	go func() {
-		defer stdin.Close()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				stdin.Write([]byte("y\n")) // Répondre "yes" aux prompts
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-	}()
-
-	// Capturer les logs en temps réel
-	logsChan := make(chan string, 100)
-	go tm.captureOutput(stdout, "STDOUT", logsChan)
-	go tm.captureOutput(stderr, "STDERR", logsChan)
-
-	// Collecter les logs
-	go func() {
-		for logLine := range logsChan {
-			result.Logs = append(result.Logs, logLine)
-		}
-	}()
-
-	// Attendre la fin de la commande avec timeout
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case <-ctx.Done():
-		if cmd.Process != nil {
-			cmd.Process.Kill()
-		}
-		result.Error = "Installation timeout or cancelled"
-		return result, fmt.Errorf("theme installation timeout")
-
-	case err := <-done:
-		close(logsChan)
-
-		result.Duration = time.Since(startTime)
-
-		if err != nil {
-			result.Error = fmt.Sprintf("Installation failed: %v", err)
-			result.Logs = append(result.Logs, fmt.Sprintf("ERROR: %v", err))
-			return result, err
-		}
-
-		// Vérifier que le thème est maintenant installé
-		result.Installed = tm.isThemeInstalled(ctx, workspace, normalizedTheme)
-		result.Success = result.Installed
-
-		if result.Success {
-			result.Logs = append(result.Logs, fmt.Sprintf("SUCCESS: Theme %s installed in %v", normalizedTheme, result.Duration))
-			log.Printf("Theme %s installed successfully in %v", normalizedTheme, result.Duration)
-		} else {
-			result.Error = "Theme installation completed but theme not detected as installed"
-			result.Logs = append(result.Logs, "WARNING: Installation completed but theme not detected")
-		}
-
-		return result, nil
-	}
-}
-
 // InstallMultipleThemes installe plusieurs thèmes
 func (tm *ThemeManager) InstallMultipleThemes(ctx context.Context, workspace *Workspace, themes []string) ([]*ThemeInstallResult, error) {
 	var results []*ThemeInstallResult
@@ -290,27 +181,6 @@ func (tm *ThemeManager) InstallMultipleThemes(ctx context.Context, workspace *Wo
 	}
 
 	return results, nil
-}
-
-// AutoInstallMissingThemes détecte et installe automatiquement les thèmes manquants
-func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace *Workspace) ([]*ThemeInstallResult, error) {
-	log.Printf("Auto-detecting missing Slidev themes...")
-
-	// Détecter les thèmes manquants
-	missingThemes, err := tm.DetectMissingThemes(ctx, workspace)
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect missing themes: %w", err)
-	}
-
-	if len(missingThemes) == 0 {
-		log.Printf("No missing themes detected")
-		return []*ThemeInstallResult{}, nil
-	}
-
-	log.Printf("Found %d missing themes: %v", len(missingThemes), missingThemes)
-
-	// Installer les thèmes manquants
-	return tm.InstallMultipleThemes(ctx, workspace, missingThemes)
 }
 
 // ListInstalledThemes liste les thèmes installés
@@ -348,20 +218,6 @@ func (tm *ThemeManager) ListInstalledThemes(ctx context.Context, workspace *Work
 	}
 
 	return themes, nil
-}
-
-// buildInstallEnvironment construit l'environnement pour l'installation
-func (tm *ThemeManager) buildInstallEnvironment() []string {
-	env := os.Environ()
-
-	// Variables pour éviter les prompts interactifs
-	env = append(env, "NPM_CONFIG_YES=true")
-	env = append(env, "NPM_CONFIG_AUDIT=false")
-	env = append(env, "NPM_CONFIG_FUND=false")
-	env = append(env, "NPM_CONFIG_UPDATE_NOTIFIER=false")
-	env = append(env, "CI=true")
-
-	return env
 }
 
 // captureOutput capture la sortie d'un stream
@@ -409,4 +265,376 @@ func (w *Workspace) readFileContent(filename string) (string, error) {
 	}
 
 	return string(content), nil
+}
+
+// InstallTheme installe un thème Slidev - VERSION CORRIGÉE
+func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, theme string) (*ThemeInstallResult, error) {
+	startTime := time.Now()
+	result := &ThemeInstallResult{
+		Theme:   theme,
+		Success: false,
+		Logs:    []string{},
+	}
+
+	// Validation des entrées
+	if theme == "" {
+		result.Error = "theme name cannot be empty"
+		return result, fmt.Errorf("theme name cannot be empty")
+	}
+
+	// Normaliser le nom du thème
+	normalizedTheme := tm.normalizeThemeName(theme)
+	result.Theme = normalizedTheme
+
+	log.Printf("Installing Slidev theme: %s", normalizedTheme)
+	result.Logs = append(result.Logs, fmt.Sprintf("Starting installation of theme: %s", normalizedTheme))
+
+	// Créer un contexte avec timeout si pas déjà présent
+	installCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+
+	// Préparer la commande d'installation
+	cmd := tm.prepareInstallCommand(installCtx, workspace, normalizedTheme)
+
+	// Configurer la gestion des erreurs et des pipes
+	if err := tm.setupCommandPipes(cmd, result); err != nil {
+		result.Error = fmt.Sprintf("Failed to setup command pipes: %v", err)
+		return result, err
+	}
+
+	// Démarrer la commande
+	if err := cmd.Start(); err != nil {
+		result.Error = fmt.Sprintf("Failed to start installation command: %v", err)
+		return result, err
+	}
+
+	// Gérer l'installation de manière robuste
+	if err := tm.handleInstallation(installCtx, cmd, result); err != nil {
+		// La commande a échoué, mais on a des logs utiles
+		result.Duration = time.Since(startTime)
+		return result, err
+	}
+
+	// Finaliser l'installation
+	result.Duration = time.Since(startTime)
+	result.Installed = tm.isThemeInstalled(installCtx, workspace, normalizedTheme)
+	result.Success = result.Installed
+
+	if result.Success {
+		result.Logs = append(result.Logs, fmt.Sprintf("SUCCESS: Theme %s installed in %v", normalizedTheme, result.Duration))
+		log.Printf("Theme %s installed successfully in %v", normalizedTheme, result.Duration)
+	} else {
+		result.Error = "Theme installation completed but theme not detected as installed"
+		result.Logs = append(result.Logs, "WARNING: Installation completed but theme not detected")
+	}
+
+	return result, nil
+}
+
+// prepareInstallCommand prépare la commande d'installation
+func (tm *ThemeManager) prepareInstallCommand(ctx context.Context, workspace *Workspace, theme string) *exec.Cmd {
+	var cmd *exec.Cmd
+	if tm.npmCommand == "yarn" {
+		cmd = exec.CommandContext(ctx, "yarn", "add", theme)
+	} else {
+		cmd = exec.CommandContext(ctx, "npm", "install", theme, "--save")
+	}
+
+	cmd.Dir = workspace.GetPath()
+	cmd.Env = tm.buildInstallEnvironment()
+
+	return cmd
+}
+
+// setupCommandPipes configure les pipes de manière sécurisée
+func (tm *ThemeManager) setupCommandPipes(cmd *exec.Cmd, result *ThemeInstallResult) error {
+	// Configurer stdout
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	// Configurer stderr
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Configurer stdin de manière sécurisée
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	// Stocker les pipes pour la gestion
+	result.pipes = &installPipes{
+		stdout: stdout,
+		stderr: stderr,
+		stdin:  stdin,
+	}
+
+	return nil
+}
+
+// handleInstallation gère l'installation de manière robuste
+func (tm *ThemeManager) handleInstallation(ctx context.Context, cmd *exec.Cmd, result *ThemeInstallResult) error {
+	// Channels pour la coordination
+	logsChan := make(chan string, 100)
+	errChan := make(chan error, 3)
+	done := make(chan struct{})
+	captureCtx, captureCancel := context.WithCancel(ctx)
+
+	// WaitGroup pour attendre que toutes les goroutines se terminent
+	var wg sync.WaitGroup
+
+	// Démarrer la capture des logs
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		tm.safeOutputCapture(captureCtx, result.pipes.stdout, "STDOUT", logsChan, errChan)
+	}()
+	go func() {
+		defer wg.Done()
+		tm.safeOutputCapture(captureCtx, result.pipes.stderr, "STDERR", logsChan, errChan)
+	}()
+
+	// Gérer stdin de manière sécurisée
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tm.safeInputHandler(captureCtx, result.pipes.stdin, errChan)
+	}()
+
+	// Collecter les logs
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(done)
+		for {
+			select {
+			case <-captureCtx.Done():
+				// Vider le channel restant
+				for {
+					select {
+					case logLine := <-logsChan:
+						result.Logs = append(result.Logs, logLine)
+					default:
+						return
+					}
+				}
+			case logLine, ok := <-logsChan:
+				if !ok {
+					return
+				}
+				result.Logs = append(result.Logs, logLine)
+			}
+		}
+	}()
+
+	// Attendre la fin de la commande avec gestion du contexte
+	cmdDone := make(chan error, 1)
+	go func() {
+		cmdDone <- cmd.Wait()
+	}()
+
+	var cmdErr error
+	select {
+	case <-ctx.Done():
+		// Context annulé - tuer le processus
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		// Attendre que la commande se termine
+		<-cmdDone
+		cmdErr = ctx.Err()
+		result.Logs = append(result.Logs, fmt.Sprintf("Installation cancelled: %v", ctx.Err()))
+	case cmdErr = <-cmdDone:
+		// Commande terminée normalement
+	}
+
+	// Arrêter toutes les goroutines de capture
+	captureCancel()
+
+	// Attendre que toutes les goroutines se terminent avant de fermer le channel
+	go func() {
+		wg.Wait()
+		close(logsChan)
+	}()
+
+	// Attendre la fin de la collecte des logs
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		log.Printf("Warning: Log collection timeout")
+	}
+
+	// Analyser le résultat
+	if cmdErr != nil {
+		// Gestion spécifique des erreurs de contexte
+		if cmdErr == context.DeadlineExceeded {
+			result.Error = "Installation timeout: context deadline exceeded"
+			result.ExitCode = -2
+		} else if cmdErr == context.Canceled {
+			result.Error = "Installation cancelled: context canceled"
+			result.ExitCode = -3
+		} else if exitError, ok := cmdErr.(*exec.ExitError); ok {
+			result.ExitCode = exitError.ExitCode()
+			result.Error = fmt.Sprintf("Installation failed: %v", cmdErr)
+		} else {
+			result.ExitCode = 1
+			result.Error = fmt.Sprintf("Installation failed: %v", cmdErr)
+		}
+
+		result.Logs = append(result.Logs, fmt.Sprintf("ERROR: %v", cmdErr))
+		return cmdErr
+	}
+
+	result.ExitCode = 0
+	return nil
+}
+
+// safeOutputCapture capture la sortie de manière sécurisée
+func (tm *ThemeManager) safeOutputCapture(ctx context.Context, reader io.ReadCloser, prefix string, logChan chan<- string, errChan chan<- error) {
+	defer func() {
+		if err := reader.Close(); err != nil {
+			// Ne plus logger cette erreur car elle est normale quand le processus se termine
+		}
+	}()
+
+	scanner := bufio.NewScanner(reader)
+
+	// Limiter la taille des lignes pour éviter les attaques DoS
+	const maxLineSize = 64 * 1024 // 64KB par ligne max
+	scanner.Buffer(make([]byte, maxLineSize), maxLineSize)
+
+	for scanner.Scan() {
+		// Vérifier si le contexte est annulé
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		line := scanner.Text()
+		timestamp := time.Now().Format("15:04:05")
+		logLine := fmt.Sprintf("[%s] %s: %s", timestamp, prefix, line)
+
+		// Essayer d'envoyer le log, mais s'arrêter si le contexte est annulé
+		select {
+		case logChan <- logLine:
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+			// Canal plein, ignorer cette ligne pour éviter le blocage
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		errMsg := fmt.Sprintf("Error reading %s output: %v", prefix, err)
+		select {
+		case errChan <- fmt.Errorf(errMsg):
+		case logChan <- errMsg:
+		case <-ctx.Done():
+		default:
+			// Si tous les channels sont pleins ou fermés, logger au moins
+			log.Printf("Warning: %s", errMsg)
+		}
+	}
+}
+
+// safeInputHandler gère stdin de manière sécurisée
+func (tm *ThemeManager) safeInputHandler(ctx context.Context, stdin io.WriteCloser, errChan chan<- error) {
+	defer func() {
+		if err := stdin.Close(); err != nil {
+			// Ne plus logger cette erreur car elle est normale
+		}
+	}()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Essayer d'écrire, mais gérer les erreurs silencieusement
+			if _, err := stdin.Write([]byte("y\n")); err != nil {
+				// Stdin fermé ou erreur - arrêter silencieusement
+				return
+			}
+		}
+	}
+}
+
+// buildInstallEnvironment construit l'environnement pour l'installation - VERSION SÉCURISÉE
+func (tm *ThemeManager) buildInstallEnvironment() []string {
+	env := os.Environ()
+
+	// Variables pour éviter les prompts interactifs
+	secureEnvVars := []string{
+		"NPM_CONFIG_YES=true",
+		"NPM_CONFIG_AUDIT=false",
+		"NPM_CONFIG_FUND=false",
+		"NPM_CONFIG_UPDATE_NOTIFIER=false",
+		"NPM_CONFIG_PROGRESS=false",
+		"CI=true",
+		"DEBIAN_FRONTEND=noninteractive",
+		// Limiter les ressources
+		"NPM_CONFIG_MAXSOCKETS=5",
+		"NPM_CONFIG_TIMEOUT=300000", // 5 minutes
+	}
+
+	return append(env, secureEnvVars...)
+}
+
+// AutoInstallMissingThemes installe automatiquement les thèmes manquants - VERSION ROBUSTE
+func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace *Workspace) ([]*ThemeInstallResult, error) {
+	log.Printf("Auto-detecting missing Slidev themes...")
+
+	// Détecter les thèmes manquants
+	missingThemes, err := tm.DetectMissingThemes(ctx, workspace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect missing themes: %w", err)
+	}
+
+	if len(missingThemes) == 0 {
+		log.Printf("No missing themes detected")
+		return []*ThemeInstallResult{}, nil
+	}
+
+	log.Printf("Found %d missing themes: %v", len(missingThemes), missingThemes)
+
+	// Limiter le nombre de thèmes à installer simultanément
+	const maxConcurrent = 3
+	semaphore := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var results []*ThemeInstallResult
+
+	// Installer les thèmes avec limite de concurrence
+	for _, theme := range missingThemes {
+		wg.Add(1)
+		go func(t string) {
+			defer wg.Done()
+
+			// Acquérir le semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			log.Printf("Installing theme: %s", t)
+			result, err := tm.InstallTheme(ctx, workspace, t)
+
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+
+			if err != nil {
+				log.Printf("Failed to install theme %s: %v", t, err)
+			}
+		}(theme)
+	}
+
+	wg.Wait()
+	return results, nil
 }
