@@ -246,7 +246,7 @@ func (h *ThemeHandlers) ListAvailableThemes(c *gin.Context) {
 
 	// Vérifier le statut d'installation pour chaque thème
 	for _, theme := range themeList {
-		installed := h.themeManager.IsThemeInstalled(ctx, tempWorkspace, theme.name)
+		installed := h.themeManager.IsThemeInstalled(tempWorkspace, theme.name)
 
 		// Obtenir la version si installé
 		version := "latest"

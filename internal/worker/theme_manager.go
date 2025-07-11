@@ -79,7 +79,7 @@ func (tm *ThemeManager) DetectMissingThemes(ctx context.Context, workspace *Work
 			themes := tm.extractThemesFromContent(content)
 
 			for _, theme := range themes {
-				if !tm.isThemeInstalled(ctx, workspace, theme) {
+				if !tm.isThemeInstalled(workspace, theme) {
 					missingThemes = append(missingThemes, theme)
 				}
 			}
@@ -109,7 +109,7 @@ func (tm *ThemeManager) extractThemesFromContent(content string) []string {
 		for _, match := range matches {
 			if len(match) > 1 {
 				theme := match[1]
-				if theme != "default" && theme != "none" {
+				if theme != "none" {
 					themes = append(themes, tm.normalizeThemeName(theme))
 				}
 			}
@@ -132,30 +132,12 @@ func (tm *ThemeManager) normalizeThemeName(theme string) string {
 }
 
 // IsThemeInstalled vérifie si un thème est installé (méthode publique)
-func (tm *ThemeManager) IsThemeInstalled(ctx context.Context, workspace *Workspace, theme string) bool {
-	return tm.isThemeInstalled(ctx, workspace, theme)
+func (tm *ThemeManager) IsThemeInstalled(workspace *Workspace, theme string) bool {
+	return tm.isThemeInstalled(workspace, theme)
 }
 
 // isThemeInstalled vérifie si un thème est installé (méthode privée)
-func (tm *ThemeManager) isThemeInstalled(ctx context.Context, workspace *Workspace, theme string) bool {
-	// Vérifier dans package.json
-	if workspace.FileExists("package.json") {
-		content, err := workspace.readFileContent("package.json")
-		if err == nil {
-			var pkg map[string]interface{}
-			if json.Unmarshal([]byte(content), &pkg) == nil {
-				// Vérifier dependencies et devDependencies
-				for _, depType := range []string{"dependencies", "devDependencies"} {
-					if deps, ok := pkg[depType].(map[string]interface{}); ok {
-						if _, exists := deps[theme]; exists {
-							return true
-						}
-					}
-				}
-			}
-		}
-	}
-
+func (tm *ThemeManager) isThemeInstalled(workspace *Workspace, theme string) bool {
 	// Vérifier dans node_modules
 	nodeModulesPath := "node_modules/" + theme
 	return workspace.DirExists(nodeModulesPath)
@@ -317,7 +299,7 @@ func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, 
 
 	// Finaliser l'installation
 	result.Duration = time.Since(startTime)
-	result.Installed = tm.isThemeInstalled(installCtx, workspace, normalizedTheme)
+	result.Installed = tm.isThemeInstalled(workspace, normalizedTheme)
 	result.Success = result.Installed
 
 	if result.Success {

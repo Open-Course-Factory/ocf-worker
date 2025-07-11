@@ -186,10 +186,6 @@ func (h *WorkerHandlers) GetWorkerHealth(c *gin.Context) {
 	// Vérifier si des workers sont bloqués
 	stuckWorkers := 0
 	for _, worker := range stats.Workers {
-		if worker.Status == "busy" && worker.CurrentJobID != "" {
-			// Ici on pourrait vérifier depuis combien de temps le worker traite le job
-			// Pour l'instant, on compte juste les workers occupés
-		}
 		if worker.Status == "stopped" {
 			stuckWorkers++
 		}
