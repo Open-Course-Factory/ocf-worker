@@ -268,3 +268,31 @@ func ValidateListJobsParams(c *gin.Context, v *APIValidator) *ValidationResult {
 
 	return result
 }
+
+// ValidateWorkspaceListParams valide les paramètres de listing des workspaces
+func ValidateWorkspaceListParams(c *gin.Context, v *APIValidator) *ValidationResult {
+	statusParam := c.Query("status")
+	limitParam := c.Query("limit")
+	offsetParam := c.Query("offset")
+
+	params, result := v.ValidateWorkspaceListParams(statusParam, limitParam, offsetParam)
+
+	if result.Valid {
+		c.Set("validated_workspace_list_params", *params)
+	}
+
+	return result
+}
+
+// ValidateWorkspaceCleanupParams valide les paramètres de nettoyage des workspaces
+func ValidateWorkspaceCleanupParams(c *gin.Context, v *APIValidator) *ValidationResult {
+	maxAgeParam := c.Query("max_age_hours")
+
+	params, result := v.ValidateWorkspaceCleanupParams(maxAgeParam)
+
+	if result.Valid {
+		c.Set("validated_workspace_cleanup_params", *params)
+	}
+
+	return result
+}

@@ -10,6 +10,7 @@ import (
 	"ocf-worker/internal/worker"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // SetupRouter configure le routeur standard (rétrocompatibilité)
@@ -103,10 +104,23 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 		{
 			workerAPI.GET("/stats", workerHandlers.GetWorkerStats)
 			workerAPI.GET("/health", workerHandlers.GetWorkerHealth)
-			workerAPI.GET("/workspaces", workerHandlers.ListWorkspaces)
-			workerAPI.GET("/workspaces/:job_id", workerHandlers.GetWorkspaceInfo)
-			workerAPI.DELETE("/workspaces/:job_id", workerHandlers.CleanupWorkspace)
-			workerAPI.POST("/workspaces/cleanup", workerHandlers.CleanupOldWorkspaces)
+
+			// Routes avec validation
+			workerAPI.GET("/workspaces",
+				validation.ValidateRequest(validation.ValidateWorkspaceListParams),
+				workerHandlers.ListWorkspaces)
+
+			workerAPI.GET("/workspaces/:job_id",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				workerHandlers.GetWorkspaceInfo)
+
+			workerAPI.DELETE("/workspaces/:job_id",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				workerHandlers.CleanupWorkspace)
+
+			workerAPI.POST("/workspaces/cleanup",
+				validation.ValidateRequest(validation.ValidateWorkspaceCleanupParams),
+				workerHandlers.CleanupOldWorkspaces)
 		}
 
 		themeAPI := api.Group("/themes")
@@ -192,9 +206,10 @@ func (h *WorkerHandlers) GetWorkerHealth(c *gin.Context) {
 	}
 
 	statusCode := http.StatusOK
-	if status == "unhealthy" {
+	switch status {
+	case "unhealthy":
 		statusCode = http.StatusServiceUnavailable
-	} else if status == "degraded" {
+	case "degraded":
 		statusCode = http.StatusOK // Toujours 200 mais avec des warnings
 	}
 
@@ -213,34 +228,24 @@ func (h *WorkerHandlers) ListWorkspaces(c *gin.Context) {
 
 // GetWorkspaceInfo retourne les informations d'un workspace spécifique
 func (h *WorkerHandlers) GetWorkspaceInfo(c *gin.Context) {
-	jobID := c.Param("job_id")
+	// Récupérer l'ID déjà validé
+	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 
-	// Validation basique de l'UUID
-	if len(jobID) != 36 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID format"})
-		return
-	}
-
-	// Pour l'instant, retourner une réponse placeholder
+	// Plus de validation inline - directement la logique métier
 	c.JSON(http.StatusOK, gin.H{
-		"job_id":  jobID,
+		"job_id":  jobID.String(),
 		"message": "Workspace info not yet implemented",
 	})
 }
 
 // CleanupWorkspace nettoie un workspace spécifique
 func (h *WorkerHandlers) CleanupWorkspace(c *gin.Context) {
-	jobID := c.Param("job_id")
+	// Récupérer l'ID déjà validé
+	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 
-	// Validation basique de l'UUID
-	if len(jobID) != 36 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID format"})
-		return
-	}
-
-	// Pour l'instant, retourner une réponse de succès simulée
+	// Plus de validation inline - directement la logique métier
 	c.JSON(http.StatusOK, gin.H{
-		"job_id":  jobID,
+		"job_id":  jobID.String(),
 		"message": "Workspace cleanup simulated (not yet implemented)",
 		"cleaned": true,
 	})
@@ -248,13 +253,13 @@ func (h *WorkerHandlers) CleanupWorkspace(c *gin.Context) {
 
 // CleanupOldWorkspaces nettoie les anciens workspaces
 func (h *WorkerHandlers) CleanupOldWorkspaces(c *gin.Context) {
-	// Paramètres optionnels
-	maxAge := c.DefaultQuery("max_age_hours", "24")
+	// Récupérer les paramètres déjà validés
+	params := c.MustGet("validated_workspace_cleanup_params").(validation.WorkspaceCleanupParams)
 
-	// Pour l'instant, retourner une réponse de succès simulée
+	// Plus de validation inline - directement la logique métier
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Old workspace cleanup simulated (not yet implemented)",
-		"max_age_hours": maxAge,
+		"max_age_hours": params.MaxAgeHours,
 		"cleaned_count": 0,
 	})
 }

@@ -31,6 +31,17 @@ type ListJobsParams struct {
 	Pagination PaginationParams `json:"pagination"`
 }
 
+// WorkspaceListParams contient les paramètres validés pour lister les workspaces
+type WorkspaceListParams struct {
+	Status     string           `json:"status"`
+	Pagination PaginationParams `json:"pagination"`
+}
+
+// WorkspaceCleanupParams contient les paramètres validés pour le nettoyage
+type WorkspaceCleanupParams struct {
+	MaxAgeHours int `json:"max_age_hours"`
+}
+
 // NewAPIValidator crée un nouveau validateur d'API
 func NewAPIValidator(config *ValidationConfig) *APIValidator {
 	return &APIValidator{
@@ -374,6 +385,72 @@ func (av *APIValidator) ValidateListJobsParams(statusParam, courseIDParam, limit
 		Status:     statusParam,
 		CourseID:   courseID,
 		Pagination: *pagination,
+	}
+
+	return params, result
+}
+
+// ValidateWorkspaceListParams valide les paramètres de listing des workspaces
+func (av *APIValidator) ValidateWorkspaceListParams(statusParam, limitParam, offsetParam string) (*WorkspaceListParams, *ValidationResult) {
+	result := &ValidationResult{Valid: true}
+
+	// Valider la pagination (réutiliser la logique existante)
+	pagination, paginationResult := av.ValidatePaginationParams(limitParam, offsetParam)
+	if !paginationResult.Valid {
+		result.Valid = false
+		result.Errors = append(result.Errors, paginationResult.Errors...)
+	}
+
+	// Valider le status optionnel (peut être "active", "idle", "stopped", etc.)
+	if statusParam != "" {
+		validStatuses := []string{"active", "idle", "stopped", "busy"}
+		isValid := false
+		for _, validStatus := range validStatuses {
+			if statusParam == validStatus {
+				isValid = true
+				break
+			}
+		}
+
+		if !isValid {
+			result.AddError("status", statusParam,
+				"invalid workspace status (must be: active, idle, stopped, busy)",
+				"INVALID_WORKSPACE_STATUS")
+		}
+	}
+
+	params := &WorkspaceListParams{
+		Status:     statusParam,
+		Pagination: *pagination,
+	}
+
+	return params, result
+}
+
+// ValidateWorkspaceCleanupParams valide les paramètres de nettoyage des workspaces
+func (av *APIValidator) ValidateWorkspaceCleanupParams(maxAgeParam string) (*WorkspaceCleanupParams, *ValidationResult) {
+	result := &ValidationResult{Valid: true}
+
+	// Valeur par défaut
+	maxAgeHours := 24
+
+	if maxAgeParam != "" {
+		if parsed, err := strconv.Atoi(maxAgeParam); err != nil {
+			result.AddError("max_age_hours", maxAgeParam,
+				"max_age_hours must be a valid integer", "INVALID_MAX_AGE")
+		} else if parsed < 1 {
+			result.AddError("max_age_hours", maxAgeParam,
+				"max_age_hours must be at least 1", "MIN_MAX_AGE")
+		} else if parsed > 8760 { // 1 an max
+			result.AddError("max_age_hours", maxAgeParam,
+				"max_age_hours too large (max 8760 hours = 1 year)", "MAX_AGE_TOO_LARGE")
+		} else {
+			maxAgeHours = parsed
+		}
+	}
+
+	params := &WorkspaceCleanupParams{
+		MaxAgeHours: maxAgeHours,
 	}
 
 	return params, result
