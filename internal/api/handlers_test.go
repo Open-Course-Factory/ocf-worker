@@ -336,18 +336,6 @@ func TestCreateJobValidation(t *testing.T) {
 			expectedError:       "Validation failed", // 👈 Notre validation
 			hasValidationErrors: true,
 		},
-		{
-			name: "Invalid callback URL with localhost - Validation",
-			requestBody: map[string]interface{}{
-				"job_id":       uuid.New().String(),
-				"course_id":    uuid.New().String(),
-				"source_path":  "test/path",
-				"callback_url": "http://localhost:3000/webhook", // 👈 Notre validation
-			},
-			expectedStatus:      400,
-			expectedError:       "Validation failed", // 👈 Notre validation
-			hasValidationErrors: true,
-		},
 	}
 
 	for _, tt := range tests {

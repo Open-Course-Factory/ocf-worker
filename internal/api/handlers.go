@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"ocf-worker/internal/jobs"
+	"ocf-worker/internal/validation"
 	"ocf-worker/pkg/models"
 	"time"
 
@@ -67,47 +68,23 @@ func (h *Handlers) GetJobStatus(c *gin.Context) {
 }
 
 // List jobs with optional filtering
+// List jobs with optional filtering
 func (h *Handlers) ListJobs(c *gin.Context) {
-	validator := GetValidator(c)
-	if validator == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
-		return
+	// Récupérer les valeurs déjà validées
+	status := c.GetString("validated_status")
+	courseID, _ := c.Get("validated_course_id")
+	pagination := c.MustGet("validated_pagination").(validation.PaginationParams)
+
+	// Convertir courseID en bon type (peut être nil)
+	var courseIDPtr *uuid.UUID
+	if courseID != nil {
+		courseIDPtr = courseID.(*uuid.UUID)
 	}
 
-	status := c.Query("status")
-	courseIDStr := c.Query("course_id")
+	log.Printf("Listing jobs with status: %s, course_id: %v, limit: %d, offset: %d",
+		status, courseIDPtr, pagination.Limit, pagination.Offset)
 
-	// Valider les paramètres de base
-	limit := 100 // valeur par défaut
-	offset := 0  // valeur par défaut
-
-	// validation des paramètres de liste
-	validationResult := validator.ValidateListParams(status, limit, offset)
-	if !validationResult.Valid {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "Invalid query parameters",
-			"validation_errors": validationResult.Errors,
-		})
-		return
-	}
-
-	log.Printf("Listing jobs with status: %s, course_id: %s", status, courseIDStr)
-
-	var courseID *uuid.UUID
-	if courseIDStr != "" {
-		// 👈 Utiliser le validator pour course_id aussi
-		parsedCourseID, courseValidation := validator.ValidateCourseIDParam(courseIDStr)
-		if !courseValidation.Valid {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "Invalid course_id parameter",
-				"validation_errors": courseValidation.Errors,
-			})
-			return
-		}
-		courseID = &parsedCourseID
-	}
-
-	jobs, err := h.jobService.ListJobs(c.Request.Context(), status, courseID)
+	jobs, err := h.jobService.ListJobs(c.Request.Context(), status, courseIDPtr)
 	if err != nil {
 		log.Printf("Failed to list jobs: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

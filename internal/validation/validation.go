@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
@@ -330,6 +331,11 @@ func (vs *ValidationService) ValidateCallbackURL(url string) *ValidationResult {
 		result.AddError("callback_url", url, "URL too long (max 2048 characters)", "URL_TOO_LONG")
 	}
 
+	if gin.Mode() == gin.ReleaseMode {
+		if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") || strings.Contains(url, "0.0.0.0") {
+			result.AddError("callback_url", url, "localhost URLs not allowed in production", "LOCALHOST_NOT_ALLOWED")
+		}
+	}
 	// Interdire les URLs localhost/127.0.0.1 en production
 	// if strings.Contains(url, "localhost") || strings.Contains(url, "127.0.0.1") || strings.Contains(url, "0.0.0.0") {
 	// 	result.AddError("callback_url", url, "localhost URLs not allowed", "LOCALHOST_NOT_ALLOWED")

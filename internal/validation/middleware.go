@@ -194,3 +194,77 @@ func ValidateFileUpload(c *gin.Context, v *APIValidator) *ValidationResult {
 
 	return result
 }
+
+// ValidateStatusParam valide un paramètre status depuis l'URL ou query
+func ValidateStatusParam(paramName string) RequestValidator {
+	return func(c *gin.Context, v *APIValidator) *ValidationResult {
+		status := c.Query(paramName)
+		result := v.ValidateStatusParam(status)
+
+		if result.Valid {
+			// Stocker le status validé (peut être vide)
+			c.Set("validated_status", status)
+		}
+
+		return result
+	}
+}
+
+// ValidatePaginationParams valide les paramètres de pagination depuis les query params
+func ValidatePaginationParams(c *gin.Context, v *APIValidator) *ValidationResult {
+	limitStr := c.Query("limit")
+	offsetStr := c.Query("offset")
+
+	pagination, result := v.ValidatePaginationParams(limitStr, offsetStr)
+
+	if result.Valid {
+		c.Set("validated_pagination", *pagination)
+	}
+
+	return result
+}
+
+// ValidateOptionalCourseIDParam valide un paramètre course_id optionnel depuis les query params
+func ValidateOptionalCourseIDParam(paramName string) RequestValidator {
+	return func(c *gin.Context, v *APIValidator) *ValidationResult {
+		courseIDStr := c.Query(paramName)
+
+		// Si pas de course_id, c'est valide
+		if courseIDStr == "" {
+			c.Set("validated_course_id", (*uuid.UUID)(nil))
+			return &ValidationResult{Valid: true}
+		}
+
+		// Sinon valider normalement
+		courseID, result := v.ValidateCourseIDParam(courseIDStr)
+
+		if result.Valid {
+			c.Set("validated_course_id", &courseID)
+		}
+
+		return result
+	}
+}
+
+// ValidateListJobsParams valide tous les paramètres pour l'endpoint ListJobs
+func ValidateListJobsParams(c *gin.Context, v *APIValidator) *ValidationResult {
+	statusParam := c.Query("status")
+	courseIDParam := c.Query("course_id")
+	limitParam := c.Query("limit")
+	offsetParam := c.Query("offset")
+
+	// Utiliser la méthode du validator API
+	params, result := v.ValidateListJobsParams(statusParam, courseIDParam, limitParam, offsetParam)
+
+	if result.Valid {
+		// Stocker les paramètres validés individuellement pour compatibilité
+		c.Set("validated_status", params.Status)
+		c.Set("validated_course_id", params.CourseID)
+		c.Set("validated_pagination", params.Pagination)
+
+		// Stocker aussi l'objet complet
+		c.Set("validated_list_params", *params)
+	}
+
+	return result
+}

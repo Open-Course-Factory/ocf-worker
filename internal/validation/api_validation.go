@@ -8,6 +8,7 @@ import (
 	"ocf-worker/pkg/models"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -16,6 +17,18 @@ import (
 // APIValidator gère la validation des requêtes API
 type APIValidator struct {
 	validationService *ValidationService
+}
+
+// PaginationParams contient les paramètres de pagination validés
+type PaginationParams struct {
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+}
+
+type ListJobsParams struct {
+	Status     string           `json:"status"`
+	CourseID   *uuid.UUID       `json:"course_id,omitempty"`
+	Pagination PaginationParams `json:"pagination"`
 }
 
 // NewAPIValidator crée un nouveau validateur d'API
@@ -257,4 +270,111 @@ func (av *APIValidator) ValidateContentSafety(content []byte, filename string) *
 	}
 
 	return result
+}
+
+// ValidateStatusParam valide un paramètre status de job (optionnel)
+func (av *APIValidator) ValidateStatusParam(status string) *ValidationResult {
+	result := &ValidationResult{Valid: true}
+
+	// Si status est vide, c'est valide (paramètre optionnel)
+	if status == "" {
+		return result
+	}
+
+	// Valider que le status est dans la liste autorisée
+	validStatuses := []string{"pending", "processing", "completed", "failed", "timeout"}
+	isValid := false
+	for _, validStatus := range validStatuses {
+		if status == validStatus {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		result.AddError("status", status,
+			"invalid status (must be: pending, processing, completed, failed, timeout)",
+			"INVALID_STATUS")
+	}
+
+	return result
+}
+
+// ValidatePaginationParams valide les paramètres de pagination avec valeurs par défaut
+func (av *APIValidator) ValidatePaginationParams(limitStr, offsetStr string) (*PaginationParams, *ValidationResult) {
+	result := &ValidationResult{Valid: true}
+
+	// Valeurs par défaut
+	limit := 100
+	offset := 0
+
+	// Valider limit si fourni
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err != nil {
+			result.AddError("limit", limitStr, "limit must be a valid integer", "INVALID_LIMIT")
+		} else if parsedLimit < 0 {
+			result.AddError("limit", limitStr, "limit cannot be negative", "NEGATIVE_LIMIT")
+		} else if parsedLimit > 1000 {
+			result.AddError("limit", limitStr, "limit too large (max 1000)", "LIMIT_TOO_LARGE")
+		} else {
+			limit = parsedLimit
+		}
+	}
+
+	// Valider offset si fourni
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err != nil {
+			result.AddError("offset", offsetStr, "offset must be a valid integer", "INVALID_OFFSET")
+		} else if parsedOffset < 0 {
+			result.AddError("offset", offsetStr, "offset cannot be negative", "NEGATIVE_OFFSET")
+		} else {
+			offset = parsedOffset
+		}
+	}
+
+	pagination := &PaginationParams{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	return pagination, result
+}
+
+// ValidateListJobsParams valide tous les paramètres pour ListJobs
+func (av *APIValidator) ValidateListJobsParams(statusParam, courseIDParam, limitParam, offsetParam string) (*ListJobsParams, *ValidationResult) {
+	result := &ValidationResult{Valid: true}
+
+	// Valider le status
+	statusResult := av.ValidateStatusParam(statusParam)
+	if !statusResult.Valid {
+		result.Valid = false
+		result.Errors = append(result.Errors, statusResult.Errors...)
+	}
+
+	// Valider course_id si fourni
+	var courseID *uuid.UUID
+	if courseIDParam != "" {
+		parsedCourseID, courseValidation := av.ValidateCourseIDParam(courseIDParam)
+		if !courseValidation.Valid {
+			result.Valid = false
+			result.Errors = append(result.Errors, courseValidation.Errors...)
+		} else {
+			courseID = &parsedCourseID
+		}
+	}
+
+	// Valider la pagination
+	pagination, paginationResult := av.ValidatePaginationParams(limitParam, offsetParam)
+	if !paginationResult.Valid {
+		result.Valid = false
+		result.Errors = append(result.Errors, paginationResult.Errors...)
+	}
+
+	params := &ListJobsParams{
+		Status:     statusParam,
+		CourseID:   courseID,
+		Pagination: *pagination,
+	}
+
+	return params, result
 }

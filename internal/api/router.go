@@ -56,7 +56,9 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 		api.GET("/jobs/:id",
 			validation.ValidateRequest(validation.ValidateJobIDParam("id")),
 			jobHandlers.GetJobStatus)
-		api.GET("/jobs", jobHandlers.ListJobs)
+		api.GET("/jobs",
+			validation.ValidateRequest(validation.ValidateListJobsParams),
+			jobHandlers.ListJobs)
 
 		// Routes du storage
 		storage := api.Group("/storage")
