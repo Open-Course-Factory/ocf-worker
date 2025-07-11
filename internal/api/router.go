@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"ocf-worker/internal/jobs"
 	"ocf-worker/internal/storage"
+	"ocf-worker/internal/validation"
 	"ocf-worker/internal/worker"
 
 	"github.com/gin-gonic/gin"
 )
 
-// SetupRouterWithWorker configure le routeur avec les stats du worker
-func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.StorageService, workerPool *worker.WorkerPool) *gin.Engine {
+// SetupRouter configure le routeur standard (rétrocompatibilité)
+func SetupRouter(jobService jobs.JobService, storageService *storage.StorageService, workerPool *worker.WorkerPool) *gin.Engine {
 	r := gin.Default()
 
 	// Middleware pour CORS et logs
@@ -28,8 +29,11 @@ func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.S
 		c.Next()
 	})
 
+	validationConfig := validation.DefaultValidationConfig()
+	apiValidator := validation.NewAPIValidator(validationConfig)
+
 	// Handlers
-	jobHandlers := NewHandlers(jobService)
+	jobHandlers := NewHandlers(jobService, apiValidator)
 	storageHandlers := NewStorageHandlers(storageService)
 	workerHandlers := NewWorkerHandlers(workerPool)
 	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
@@ -63,7 +67,6 @@ func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.S
 			storage.GET("/jobs/:job_id/logs", storageHandlers.GetJobLogs)
 		}
 
-		// Routes du worker (nouvelles)
 		workerAPI := api.Group("/worker")
 		{
 			workerAPI.GET("/stats", workerHandlers.GetWorkerStats)
@@ -78,60 +81,6 @@ func SetupRouterWithWorker(jobService jobs.JobService, storageService *storage.S
 		{
 			themeAPI.GET("/available", themeHandlers.ListAvailableThemes)
 			themeAPI.GET("/jobs/:job_id/detect", themeHandlers.DetectThemes)
-		}
-	}
-
-	return r
-}
-
-// SetupRouter configure le routeur standard (rétrocompatibilité)
-func SetupRouter(jobService jobs.JobService, storageService *storage.StorageService) *gin.Engine {
-	r := gin.Default()
-
-	// Middleware pour CORS et logs
-	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
-
-	// Handlers
-	jobHandlers := NewHandlers(jobService)
-	storageHandlers := NewStorageHandlers(storageService)
-
-	// Routes principales
-	r.GET("/health", jobHandlers.Health)
-
-	api := r.Group("/api/v1")
-	{
-		// Routes des jobs
-		api.POST("/generate", jobHandlers.CreateJob)
-		api.GET("/jobs/:id", jobHandlers.GetJobStatus)
-		api.GET("/jobs", jobHandlers.ListJobs)
-
-		// Routes du storage
-		storage := api.Group("/storage")
-		{
-			// Info storage
-			storage.GET("/info", storageHandlers.GetStorageInfo)
-
-			// Sources des jobs
-			storage.POST("/jobs/:job_id/sources", storageHandlers.UploadJobSources)
-			storage.GET("/jobs/:job_id/sources", storageHandlers.ListJobSources)
-			storage.GET("/jobs/:job_id/sources/:filename", storageHandlers.DownloadJobSource)
-
-			// Résultats des cours
-			storage.GET("/courses/:course_id/results", storageHandlers.ListResults)
-			storage.GET("/courses/:course_id/results/:filename", storageHandlers.DownloadResult)
-
-			// Logs des jobs
-			storage.GET("/jobs/:job_id/logs", storageHandlers.GetJobLogs)
 		}
 	}
 

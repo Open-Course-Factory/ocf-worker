@@ -9,18 +9,42 @@ import (
 	"ocf-worker/internal/jobs"
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/storage/filesystem"
+	"ocf-worker/internal/validation"
+	"ocf-worker/internal/worker"
 	"ocf-worker/pkg/models"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
-func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService) {
+func setupTestRouter(t *testing.T) *gin.Engine {
+	jobService, storageService, _ := setupTestServices(t)
+
+	// Créer un mock worker pool pour les tests
+	mockWorkerPool := createMockWorkerPool(jobService, storageService)
+
+	// 👈 Utiliser SetupRouterWithWorker au lieu de SetupRouter
+	return SetupRouter(jobService, storageService, mockWorkerPool)
+}
+
+// Helper pour créer un mock worker pool
+func createMockWorkerPool(jobService jobs.JobService, storageService *storage.StorageService) *worker.WorkerPool {
+	config := &worker.PoolConfig{
+		WorkerCount:   1,
+		PollInterval:  1 * time.Second,
+		JobTimeout:    30 * time.Second,
+		WorkspaceBase: os.TempDir(),
+	}
+	return worker.NewWorkerPool(jobService, storageService, config)
+}
+
+func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService, *validation.APIValidator) {
 	// Créer un répertoire temporaire pour le storage de test
 	tempDir, err := os.MkdirTemp("", "ocf-test-storage-*")
 	require.NoError(t, err)
@@ -39,7 +63,11 @@ func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService) 
 	mockRepo := &mockJobRepository{}
 	jobService := jobs.NewJobServiceImpl(mockRepo)
 
-	return jobService, storageService
+	// Créer le validator
+	validationConfig := validation.DefaultValidationConfig()
+	apiValidator := validation.NewAPIValidator(validationConfig)
+
+	return jobService, storageService, apiValidator
 }
 
 // Mock simple du JobRepository pour les tests
@@ -108,8 +136,7 @@ func (r *mockJobRepository) DeleteOldJobs(ctx context.Context, olderThan time.Ti
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/health", nil)
@@ -125,8 +152,7 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestCreateJobEndpoint(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	jobID := uuid.New()
 	courseID := uuid.New()
@@ -135,7 +161,7 @@ func TestCreateJobEndpoint(t *testing.T) {
 		JobID:       jobID,
 		CourseID:    courseID,
 		SourcePath:  "courses/pending/" + jobID.String(),
-		CallbackURL: "http://localhost:8080/api/v1/jobs/" + jobID.String(),
+		CallbackURL: "https://api.example.com/webhook/" + jobID.String(),
 	}
 
 	jsonBody, _ := json.Marshal(reqBody)
@@ -155,17 +181,17 @@ func TestCreateJobEndpoint(t *testing.T) {
 }
 
 func TestGetJobStatus(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	jobID := uuid.New()
 	courseID := uuid.New()
 
 	// Créer d'abord un job
 	reqBody := models.GenerationRequest{
-		JobID:      jobID,
-		CourseID:   courseID,
-		SourcePath: "test/path",
+		JobID:       jobID,
+		CourseID:    courseID,
+		SourcePath:  "test/path",
+		CallbackURL: "https://api.example.com/webhook",
 	}
 
 	jsonBody, _ := json.Marshal(reqBody)
@@ -191,8 +217,7 @@ func TestGetJobStatus(t *testing.T) {
 }
 
 func TestInvalidJobID(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs/invalid-uuid", nil)
@@ -202,8 +227,7 @@ func TestInvalidJobID(t *testing.T) {
 }
 
 func TestStorageInfoEndpoint(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/storage/info", nil)
@@ -224,8 +248,7 @@ func TestStorageInfoEndpoint(t *testing.T) {
 }
 
 func TestListJobs(t *testing.T) {
-	jobService, storageService := setupTestServices(t)
-	router := SetupRouter(jobService, storageService)
+	router := setupTestRouter(t)
 
 	// Créer quelques jobs de test
 	for i := 0; i < 3; i++ {
@@ -261,4 +284,179 @@ func TestListJobs(t *testing.T) {
 	jobs, ok := response["jobs"].([]interface{})
 	assert.True(t, ok)
 	assert.Len(t, jobs, 3)
+}
+
+func TestCreateJobValidation(t *testing.T) {
+	router := setupTestRouter(t)
+
+	tests := []struct {
+		name                string
+		requestBody         interface{}
+		expectedStatus      int
+		expectedError       string
+		hasValidationErrors bool
+	}{
+		{
+			name: "Valid request",
+			requestBody: map[string]interface{}{
+				"job_id":       uuid.New().String(),
+				"course_id":    uuid.New().String(),
+				"source_path":  "test/path",
+				"callback_url": "https://api.example.com/webhook",
+			},
+			expectedStatus:      201,
+			expectedError:       "",
+			hasValidationErrors: false,
+		},
+		{
+			name: "Missing course ID - Gin validation",
+			requestBody: map[string]interface{}{
+				"job_id":      uuid.New().String(),
+				"source_path": "test/path",
+			},
+			expectedStatus:      400,
+			expectedError:       "Invalid JSON format", // 👈 Gin validation
+			hasValidationErrors: false,
+		},
+		{
+			name: "Empty source path - Gin validation",
+			requestBody: map[string]interface{}{
+				"job_id":      uuid.New().String(),
+				"course_id":   uuid.New().String(),
+				"source_path": "", // 👈 Échoue au niveau Gin à cause de required
+			},
+			expectedStatus:      400,
+			expectedError:       "Invalid JSON format", // 👈 Gin validation
+			hasValidationErrors: false,
+		},
+		{
+			name: "Invalid source path with path traversal - Validation",
+			requestBody: map[string]interface{}{
+				"job_id":       uuid.New().String(),
+				"course_id":    uuid.New().String(),
+				"source_path":  "../../../etc/passwd", // 👈 Passe Gin mais échoue notre validation
+				"callback_url": "https://api.example.com/webhook",
+			},
+			expectedStatus:      400,
+			expectedError:       "Validation failed", // 👈 Notre validation
+			hasValidationErrors: true,
+		},
+		{
+			name: "Invalid callback URL with localhost - Validation",
+			requestBody: map[string]interface{}{
+				"job_id":       uuid.New().String(),
+				"course_id":    uuid.New().String(),
+				"source_path":  "test/path",
+				"callback_url": "http://localhost:3000/webhook", // 👈 Notre validation
+			},
+			expectedStatus:      400,
+			expectedError:       "Validation failed", // 👈 Notre validation
+			hasValidationErrors: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jsonBody, _ := json.Marshal(tt.requestBody)
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("POST", "/api/v1/generate", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus != 201 {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Contains(t, response["error"], tt.expectedError)
+
+				// Vérifier validation_errors seulement pour notre validation
+				if tt.hasValidationErrors {
+					assert.Contains(t, response, "validation_errors")
+				} else {
+					assert.NotContains(t, response, "validation_errors")
+				}
+			}
+		})
+	}
+}
+
+func TestGetJobStatusValidation(t *testing.T) {
+	router := setupTestRouter(t)
+
+	tests := []struct {
+		name           string
+		jobID          string
+		expectedStatus int
+	}{
+		{
+			name:           "Invalid UUID format",
+			jobID:          "invalid-uuid",
+			expectedStatus: 400,
+		},
+		{
+			name:           "Empty job ID - Router redirect to list jobs",
+			jobID:          "",
+			expectedStatus: 301, // Gin redirects /jobs/ to /jobs
+		},
+		{
+			name:           "Valid UUID but job not found",
+			jobID:          uuid.New().String(),
+			expectedStatus: 404,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/api/v1/jobs/"+tt.jobID, nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			if tt.expectedStatus == 400 {
+				var response map[string]interface{}
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Contains(t, response, "validation_errors")
+			}
+		})
+	}
+}
+
+func TestListJobsValidation(t *testing.T) {
+	router := setupTestRouter(t)
+
+	tests := []struct {
+		name           string
+		queryParams    string
+		expectedStatus int
+	}{
+		{
+			name:           "Invalid status",
+			queryParams:    "?status=invalid_status",
+			expectedStatus: 400,
+		},
+		{
+			name:           "Invalid course_id",
+			queryParams:    "?course_id=invalid-uuid",
+			expectedStatus: 400,
+		},
+		{
+			name:           "Valid parameters",
+			queryParams:    "?status=pending",
+			expectedStatus: 200,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/api/v1/jobs"+tt.queryParams, nil)
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
+	}
 }

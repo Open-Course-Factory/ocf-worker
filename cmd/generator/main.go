@@ -20,6 +20,54 @@ import (
 	"github.com/lpernett/godotenv"
 )
 
+// @title OCF Worker API
+// @version 1.0
+// @description API de génération de cours OCF avec workers asynchrones
+// @description
+// @description OCF Worker est un microservice Go pour la génération asynchrone de cours
+// @description dans le cadre du projet **Open Course Factory (OCF)**. Il traite des jobs
+// @description de génération de manière asynchrone avec une API REST et un système de
+// @description storage abstrait supportant filesystem et Garage S3.
+// @description
+// @description ## Fonctionnalités
+// @description
+// @description - ✅ **API REST complète** pour la gestion des jobs de génération
+// @description - ✅ **Storage abstrait** avec backends filesystem et Garage S3
+// @description - ✅ **Upload multipart** pour les fichiers sources
+// @description - ✅ **Gestion asynchrone** des jobs avec statuts et progression
+// @description - ✅ **Base PostgreSQL** avec GORM et types JSON personnalisés
+// @description - ✅ **Docker ready** avec docker-compose pour le développement
+// @description - ✅ **Tests complets** unitaires et d'intégration
+// @description - ✅ **Cleanup automatique** des jobs anciens
+// @description - ✅ **Health checks** et monitoring
+//
+// @contact.name OCF Development Team
+//
+// @license.name GNU AGPL 3.0
+// @license.url https://www.gnu.org/licenses/agpl-3.0.html
+//
+// @host localhost:8081
+// @BasePath /api/v1
+//
+// @schemes http https
+//
+// @tag.name Jobs
+// @tag.description Gestion des jobs de génération
+//
+// @tag.name Storage
+// @tag.description Stockage et récupération des fichiers
+//
+// @tag.name Worker
+// @tag.description Monitoring et gestion des workers
+//
+// @tag.name Health
+// @tag.description Health checks et monitoring du système
+//
+// @tag.name Themes
+// @tag.description Gestion des thèmes Slidev
+//
+// @externalDocs.description Documentation complète OCF
+// @externalDocs.url TBD
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
@@ -78,7 +126,7 @@ func main() {
 	}
 
 	// Setup router with enhanced worker stats
-	router := api.SetupRouterWithWorker(jobService, storageService, workerPool)
+	router := api.SetupRouter(jobService, storageService, workerPool)
 
 	// Start server in goroutine
 	log.Printf("Starting ocf-worker on port %s", cfg.Port)

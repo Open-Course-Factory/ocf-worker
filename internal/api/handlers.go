@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"ocf-worker/internal/jobs"
+	"ocf-worker/internal/validation"
 	"ocf-worker/pkg/models"
 	"time"
 
@@ -13,11 +14,13 @@ import (
 
 type Handlers struct {
 	jobService jobs.JobService
+	validator  *validation.APIValidator
 }
 
-func NewHandlers(jobService jobs.JobService) *Handlers {
+func NewHandlers(jobService jobs.JobService, apiValidator *validation.APIValidator) *Handlers {
 	return &Handlers{
 		jobService: jobService,
+		validator:  apiValidator,
 	}
 }
 
@@ -33,9 +36,21 @@ func (h *Handlers) Health(c *gin.Context) {
 // Create a new generation job
 func (h *Handlers) CreateJob(c *gin.Context) {
 	var req models.GenerationRequest
+
+	// Validation JSON basique
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Failed to bind JSON: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format", "details": err.Error()})
+		return
+	}
+
+	// validation avec le système structuré
+	validationResult := h.validator.ValidateGenerationRequest(&req)
+	if !validationResult.Valid {
+		// Formater les erreurs de validation pour l'API
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Validation failed",
+			"validation_errors": validationResult.Errors,
+		})
 		return
 	}
 
@@ -56,11 +71,14 @@ func (h *Handlers) CreateJob(c *gin.Context) {
 func (h *Handlers) GetJobStatus(c *gin.Context) {
 	jobIDStr := c.Param("id")
 	log.Printf("Retrieving job status for ID: %s", jobIDStr)
-	
-	jobID, err := uuid.Parse(jobIDStr)
-	if err != nil {
-		log.Printf("Invalid job ID format: %s, error: %v", jobIDStr, err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID format"})
+
+	jobID, validationResult := h.validator.ValidateJobIDParam(jobIDStr)
+	if !validationResult.Valid {
+		log.Printf("Invalid job ID format: %s", jobIDStr)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid job ID",
+			"validation_errors": validationResult.Errors,
+		})
 		return
 	}
 
@@ -82,17 +100,34 @@ func (h *Handlers) ListJobs(c *gin.Context) {
 	status := c.Query("status")
 	courseIDStr := c.Query("course_id")
 
+	// Valider les paramètres de base
+	limit := 100 // valeur par défaut
+	offset := 0  // valeur par défaut
+
+	// validation des paramètres de liste
+	validationResult := h.validator.ValidateListParams(status, limit, offset)
+	if !validationResult.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid query parameters",
+			"validation_errors": validationResult.Errors,
+		})
+		return
+	}
+
 	log.Printf("Listing jobs with status: %s, course_id: %s", status, courseIDStr)
 
 	var courseID *uuid.UUID
 	if courseIDStr != "" {
-		parsed, err := uuid.Parse(courseIDStr)
-		if err != nil {
-			log.Printf("Invalid course ID format: %s", courseIDStr)
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course_id"})
+		// 👈 Utiliser le validator pour course_id aussi
+		parsedCourseID, courseValidation := h.validator.ValidateCourseIDParam(courseIDStr)
+		if !courseValidation.Valid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "Invalid course_id parameter",
+				"validation_errors": courseValidation.Errors,
+			})
 			return
 		}
-		courseID = &parsed
+		courseID = &parsedCourseID
 	}
 
 	jobs, err := h.jobService.ListJobs(c.Request.Context(), status, courseID)

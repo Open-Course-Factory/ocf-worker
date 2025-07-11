@@ -2,7 +2,6 @@
 package config
 
 import (
-	"log"
 	"ocf-worker/pkg/storage"
 	"os"
 	"strconv"
@@ -32,10 +31,6 @@ type WorkerConfig struct {
 func Load() *Config {
 	timeout, _ := time.ParseDuration(getEnv("JOB_TIMEOUT", "30m"))
 	cleanup, _ := time.ParseDuration(getEnv("CLEANUP_INTERVAL", "1h"))
-
-	log.Printf("DEBUG: PORT=%s", os.Getenv("PORT"))
-	log.Printf("DEBUG: DATABASE_URL=%s", os.Getenv("DATABASE_URL"))
-	log.Printf("DEBUG: STORAGE_TYPE=%s", os.Getenv("STORAGE_TYPE"))
 
 	return &Config{
 		Port:            getEnv("PORT", "8081"),
