@@ -2,8 +2,10 @@ package api
 
 import (
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"ocf-worker/internal/storage"
+	"ocf-worker/internal/validation"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -12,20 +14,26 @@ import (
 
 type StorageHandlers struct {
 	storageService *storage.StorageService
+	validator      *validation.APIValidator
 }
 
-func NewStorageHandlers(storageService *storage.StorageService) *StorageHandlers {
+func NewStorageHandlers(storageService *storage.StorageService, validator *validation.APIValidator) *StorageHandlers {
 	return &StorageHandlers{
 		storageService: storageService,
+		validator:      validator,
 	}
 }
 
 // UploadJobSources upload des fichiers source pour un job
 func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
-	jobID, err := uuid.Parse(jobIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+
+	jobID, validationResult := h.validator.ValidateJobIDParam(jobIDStr)
+	if !validationResult.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid job ID",
+			"validation_errors": validationResult.Errors,
+		})
 		return
 	}
 
@@ -43,15 +51,53 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	}
 
 	// Valider les fichiers
-	for _, file := range files {
-		if err := h.storageService.ValidateFile(file.Filename); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	fileValidation := h.validator.ValidateFileUpload(files)
+	if !fileValidation.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "File validation failed",
+			"validation_errors": fileValidation.Errors,
+		})
+		return
+	}
+
+	// 👈 Sanitiser les noms de fichiers et valider le contenu
+	var processedFiles []*multipart.FileHeader
+	for _, fileHeader := range files {
+		// Sanitiser le nom de fichier
+		sanitizedName := h.validator.SanitizeFilename(fileHeader.Filename)
+		if sanitizedName != fileHeader.Filename {
+			// Créer une nouvelle structure avec le nom sanitisé
+			newHeader := *fileHeader
+			newHeader.Filename = sanitizedName
+			processedFiles = append(processedFiles, &newHeader)
+		} else {
+			processedFiles = append(processedFiles, fileHeader)
+		}
+
+		// 👈 Validation du contenu de sécurité
+		file, err := fileHeader.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open file: " + fileHeader.Filename})
+			return
+		}
+
+		// Lire le contenu pour la validation (attention à la mémoire)
+		content := make([]byte, min(fileHeader.Size, 1024*1024)) // Max 1MB pour validation
+		n, _ := file.Read(content)
+		file.Close()
+
+		contentValidation := h.validator.ValidateContentSafety(content[:n], sanitizedName)
+		if !contentValidation.Valid {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "Content validation failed for file: " + fileHeader.Filename,
+				"validation_errors": contentValidation.Errors,
+			})
 			return
 		}
 	}
 
-	// Upload les fichiers
-	if err := h.storageService.UploadJobSources(c.Request.Context(), jobID, files); err != nil {
+	// Upload les fichiers (utiliser les fichiers traités)
+	if err := h.storageService.UploadJobSources(c.Request.Context(), jobID, processedFiles); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -59,16 +105,20 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "files uploaded successfully",
 		"job_id":  jobID,
-		"count":   len(files),
+		"count":   len(processedFiles),
 	})
 }
 
 // ListJobSources liste les fichiers source d'un job
 func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
-	jobID, err := uuid.Parse(jobIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+
+	jobID, validationResult := h.validator.ValidateJobIDParam(jobIDStr)
+	if !validationResult.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid job ID",
+			"validation_errors": validationResult.Errors,
+		})
 		return
 	}
 
@@ -87,15 +137,23 @@ func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 // DownloadJobSource télécharge un fichier source
 func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
-	jobID, err := uuid.Parse(jobIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job ID"})
+
+	jobID, jobValidation := h.validator.ValidateJobIDParam(jobIDStr)
+	if !jobValidation.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid job ID",
+			"validation_errors": jobValidation.Errors,
+		})
 		return
 	}
 
 	filename := c.Param("filename")
-	if filename == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "filename required"})
+	filenameValidation := h.validator.ValidateFilenameParam(filename)
+	if !filenameValidation.Valid {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Invalid filename",
+			"validation_errors": filenameValidation.Errors,
+		})
 		return
 	}
 

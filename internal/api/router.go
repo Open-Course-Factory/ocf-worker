@@ -34,7 +34,7 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 
 	// Handlers
 	jobHandlers := NewHandlers(jobService, apiValidator)
-	storageHandlers := NewStorageHandlers(storageService)
+	storageHandlers := NewStorageHandlers(storageService, apiValidator)
 	workerHandlers := NewWorkerHandlers(workerPool)
 	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
 
