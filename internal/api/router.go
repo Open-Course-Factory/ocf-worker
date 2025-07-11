@@ -32,9 +32,14 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 	validationConfig := validation.DefaultValidationConfig()
 	apiValidator := validation.NewAPIValidator(validationConfig)
 
+	r.Use(SecurityHeadersMiddleware())
+	r.Use(ValidationMiddleware(apiValidator))
+	r.Use(ValidationErrorLogger())
+	r.Use(RateLimitMiddleware(60))
+
 	// Handlers
-	jobHandlers := NewHandlers(jobService, apiValidator)
-	storageHandlers := NewStorageHandlers(storageService, apiValidator)
+	jobHandlers := NewHandlers(jobService)
+	storageHandlers := NewStorageHandlers(storageService)
 	workerHandlers := NewWorkerHandlers(workerPool)
 	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
 

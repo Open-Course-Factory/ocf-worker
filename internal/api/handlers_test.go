@@ -9,7 +9,6 @@ import (
 	"ocf-worker/internal/jobs"
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/storage/filesystem"
-	"ocf-worker/internal/validation"
 	"ocf-worker/internal/worker"
 	"ocf-worker/pkg/models"
 	"os"
@@ -24,7 +23,7 @@ import (
 )
 
 func setupTestRouter(t *testing.T) *gin.Engine {
-	jobService, storageService, _ := setupTestServices(t)
+	jobService, storageService := setupTestServices(t)
 
 	// Créer un mock worker pool pour les tests
 	mockWorkerPool := createMockWorkerPool(jobService, storageService)
@@ -44,7 +43,7 @@ func createMockWorkerPool(jobService jobs.JobService, storageService *storage.St
 	return worker.NewWorkerPool(jobService, storageService, config)
 }
 
-func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService, *validation.APIValidator) {
+func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService) {
 	// Créer un répertoire temporaire pour le storage de test
 	tempDir, err := os.MkdirTemp("", "ocf-test-storage-*")
 	require.NoError(t, err)
@@ -63,11 +62,7 @@ func setupTestServices(t *testing.T) (jobs.JobService, *storage.StorageService, 
 	mockRepo := &mockJobRepository{}
 	jobService := jobs.NewJobServiceImpl(mockRepo)
 
-	// Créer le validator
-	validationConfig := validation.DefaultValidationConfig()
-	apiValidator := validation.NewAPIValidator(validationConfig)
-
-	return jobService, storageService, apiValidator
+	return jobService, storageService
 }
 
 // Mock simple du JobRepository pour les tests

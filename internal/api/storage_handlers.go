@@ -5,7 +5,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"ocf-worker/internal/storage"
-	"ocf-worker/internal/validation"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -14,21 +13,24 @@ import (
 
 type StorageHandlers struct {
 	storageService *storage.StorageService
-	validator      *validation.APIValidator
 }
 
-func NewStorageHandlers(storageService *storage.StorageService, validator *validation.APIValidator) *StorageHandlers {
+func NewStorageHandlers(storageService *storage.StorageService) *StorageHandlers {
 	return &StorageHandlers{
 		storageService: storageService,
-		validator:      validator,
 	}
 }
 
 // UploadJobSources upload des fichiers source pour un job
 func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
+	validator := GetValidator(c)
+	if validator == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
+		return
+	}
 	jobIDStr := c.Param("job_id")
 
-	jobID, validationResult := h.validator.ValidateJobIDParam(jobIDStr)
+	jobID, validationResult := validator.ValidateJobIDParam(jobIDStr)
 	if !validationResult.Valid {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "Invalid job ID",
@@ -51,7 +53,7 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	}
 
 	// Valider les fichiers
-	fileValidation := h.validator.ValidateFileUpload(files)
+	fileValidation := validator.ValidateFileUpload(files)
 	if !fileValidation.Valid {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "File validation failed",
@@ -64,7 +66,7 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	var processedFiles []*multipart.FileHeader
 	for _, fileHeader := range files {
 		// Sanitiser le nom de fichier
-		sanitizedName := h.validator.SanitizeFilename(fileHeader.Filename)
+		sanitizedName := validator.SanitizeFilename(fileHeader.Filename)
 		if sanitizedName != fileHeader.Filename {
 			// Créer une nouvelle structure avec le nom sanitisé
 			newHeader := *fileHeader
@@ -86,7 +88,7 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 		n, _ := file.Read(content)
 		file.Close()
 
-		contentValidation := h.validator.ValidateContentSafety(content[:n], sanitizedName)
+		contentValidation := validator.ValidateContentSafety(content[:n], sanitizedName)
 		if !contentValidation.Valid {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":             "Content validation failed for file: " + fileHeader.Filename,
@@ -111,9 +113,14 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 
 // ListJobSources liste les fichiers source d'un job
 func (h *StorageHandlers) ListJobSources(c *gin.Context) {
+	validator := GetValidator(c)
+	if validator == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
+		return
+	}
 	jobIDStr := c.Param("job_id")
 
-	jobID, validationResult := h.validator.ValidateJobIDParam(jobIDStr)
+	jobID, validationResult := validator.ValidateJobIDParam(jobIDStr)
 	if !validationResult.Valid {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "Invalid job ID",
@@ -136,9 +143,14 @@ func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 
 // DownloadJobSource télécharge un fichier source
 func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
+	validator := GetValidator(c)
+	if validator == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
+		return
+	}
 	jobIDStr := c.Param("job_id")
 
-	jobID, jobValidation := h.validator.ValidateJobIDParam(jobIDStr)
+	jobID, jobValidation := validator.ValidateJobIDParam(jobIDStr)
 	if !jobValidation.Valid {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "Invalid job ID",
@@ -148,7 +160,7 @@ func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 	}
 
 	filename := c.Param("filename")
-	filenameValidation := h.validator.ValidateFilenameParam(filename)
+	filenameValidation := validator.ValidateFilenameParam(filename)
 	if !filenameValidation.Valid {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "Invalid filename",
