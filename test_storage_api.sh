@@ -240,8 +240,8 @@ if command -v uuidgen >/dev/null 2>&1; then
     JOB_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
     COURSE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
 else
-    JOB_ID="test-job-$(date +%s)"
-    COURSE_ID="test-course-$(date +%s)"
+    echo "❌ uuidgen must be installed (package uuid-runtime)"
+    exit 1
 fi
 
 echo "🆔 Using Job ID: $JOB_ID"

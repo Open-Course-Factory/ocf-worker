@@ -380,8 +380,8 @@ test_complete_workflow() {
         JOB_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
         COURSE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
     else
-        JOB_ID="test-job-$(date +%s)"
-        COURSE_ID="test-course-$(date +%s)"
+        echo "❌ uuidgen must be installed (package uuid-runtime)"
+        exit 1
     fi
 
     log_info "Job ID: $JOB_ID"
@@ -579,6 +579,7 @@ main() {
     echo "  3. 📊 Ajouter plus de métriques"
     echo "  4. 🔔 Implémenter les webhooks de notification"
     echo "  5. 🌐 Déployer en production"
+    exit 0
 }
 
 # Exécuter le script
