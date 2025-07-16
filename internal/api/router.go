@@ -43,6 +43,7 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 	storageHandlers := NewStorageHandlers(storageService)
 	workerHandlers := NewWorkerHandlers(workerPool)
 	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
+	archiveHandlers := NewArchiveHandlers(storageService)
 
 	// Routes principales
 	r.GET("/health", jobHandlers.Health)
@@ -139,6 +140,17 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
 				themeHandlers.InstallJobThemes)
 		}
+
+		storage.GET("/courses/:course_id/archive",
+			validation.ValidateRequest(
+				validation.ValidateCourseIDParam("course_id"),
+				ValidateArchiveParams,
+			),
+			archiveHandlers.DownloadResultsArchive)
+
+		storage.POST("/courses/:course_id/archive",
+			validation.ValidateRequest(validation.ValidateCourseIDParam("course_id")),
+			archiveHandlers.CreateResultsArchive)
 	}
 
 	return r
