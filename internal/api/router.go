@@ -126,7 +126,18 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 		themeAPI := api.Group("/themes")
 		{
 			themeAPI.GET("/available", themeHandlers.ListAvailableThemes)
-			themeAPI.GET("/jobs/:job_id/detect", themeHandlers.DetectThemes)
+
+			themeAPI.POST("/install",
+				validation.ValidateRequest(validation.ValidateThemeInstallRequest),
+				themeHandlers.InstallTheme)
+
+			themeAPI.GET("/jobs/:job_id/detect",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				themeHandlers.DetectThemes)
+
+			themeAPI.POST("/jobs/:job_id/install",
+				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
+				themeHandlers.InstallJobThemes)
 		}
 	}
 

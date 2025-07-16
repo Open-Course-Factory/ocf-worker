@@ -296,3 +296,33 @@ func ValidateWorkspaceCleanupParams(c *gin.Context, v *APIValidator) *Validation
 
 	return result
 }
+
+// ValidateThemeInstallRequest valide une requête d'installation de thème
+func ValidateThemeInstallRequest(c *gin.Context, v *APIValidator) *ValidationResult {
+	var req struct {
+		Theme string `json:"theme" binding:"required"`
+	}
+
+	// Parser le JSON
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return &ValidationResult{
+			Valid: false,
+			Errors: []*ValidationError{{
+				Field:   "theme",
+				Value:   "",
+				Message: "Invalid JSON format: " + err.Error(),
+				Code:    "JSON_PARSE_ERROR",
+			}},
+		}
+	}
+
+	// Valider le nom du thème
+	result := v.ValidateThemeName(req.Theme)
+
+	if result.Valid {
+		// Stocker pour le handler
+		c.Set("validated_theme_name", req.Theme)
+	}
+
+	return result
+}

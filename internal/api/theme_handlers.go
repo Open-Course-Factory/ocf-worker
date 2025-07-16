@@ -27,14 +27,7 @@ func NewThemeHandlers(storageService *storage.StorageService, workspaceBase stri
 
 // InstallTheme installe un thème spécifique
 func (h *ThemeHandlers) InstallTheme(c *gin.Context) {
-	var req struct {
-		Theme string `json:"theme" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	themeName := c.GetString("validated_theme_name")
 
 	// Créer un workspace temporaire pour l'installation
 	tempWorkspace, err := worker.NewWorkspace("/tmp/theme-install", uuid.New())
@@ -47,10 +40,10 @@ func (h *ThemeHandlers) InstallTheme(c *gin.Context) {
 	// Créer un package.json basique s'il n'existe pas
 	if !tempWorkspace.FileExists("package.json") {
 		packageJSON := `{
-  "name": "theme-install-temp",
-  "version": "1.0.0",
-  "dependencies": {}
-}`
+		"name": "theme-install-temp",
+		"version": "1.0.0",
+		"dependencies": {}
+		}`
 		if err := tempWorkspace.WriteFile("package.json", strings.NewReader(packageJSON)); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create package.json"})
 			return
@@ -61,7 +54,7 @@ func (h *ThemeHandlers) InstallTheme(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
 	defer cancel()
 
-	result, err := h.themeManager.InstallTheme(ctx, tempWorkspace, req.Theme)
+	result, err := h.themeManager.InstallTheme(ctx, tempWorkspace, themeName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":  "Theme installation failed",
