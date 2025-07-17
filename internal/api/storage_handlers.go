@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/validation"
+	_ "ocf-worker/pkg/models"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +23,27 @@ func NewStorageHandlers(storageService *storage.StorageService) *StorageHandlers
 	}
 }
 
-// UploadJobSources upload des fichiers source pour un job
+// UploadJobSources upload des fichiers sources pour un job
+// @Summary Upload des fichiers sources
+// @Description Upload des fichiers sources (slides.md, CSS, images, etc.) pour un job de génération
+// @Description
+// @Description Types de fichiers supportés:
+// @Description - `.md` - Fichiers Markdown (slides)
+// @Description - `.css` - Feuilles de style
+// @Description - `.js` - Scripts JavaScript
+// @Description - `.json` - Fichiers de configuration
+// @Description - `.png`, `.jpg`, `.gif`, `.svg` - Images
+// @Description - `.woff`, `.woff2`, `.ttf` - Polices
+// @Tags Storage
+// @Accept multipart/form-data
+// @Produce json
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Param files formData file true "Fichiers à uploader (multiple autorisé)"
+// @Success 201 {object} models.FileUploadResponse "Fichiers uploadés avec succès"
+// @Failure 400 {object} models.ErrorResponse "Erreur de validation (taille, type, etc.)"
+// @Failure 413 {object} models.ErrorResponse "Fichier trop volumineux"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/jobs/{job_id}/sources [post]
 func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	// Récupérer les données déjà validées
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
@@ -79,7 +100,18 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	})
 }
 
-// ListJobSources liste les fichiers source d'un job
+// ListJobSources liste les fichiers sources d'un job
+// @Summary Lister les fichiers sources
+// @Description Liste tous les fichiers sources uploadés pour un job donné
+// @Tags Storage
+// @Accept json
+// @Produce json
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Success 200 {object} models.FileListResponse "Liste des fichiers sources"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Job non trouvé ou aucun fichier"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/jobs/{job_id}/sources [get]
 func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 	validator := GetValidator(c)
 	if validator == nil {
@@ -109,7 +141,24 @@ func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 	})
 }
 
-// DownloadJobSource télécharge un fichier source
+// DownloadJobSource télécharge un fichier source spécifique
+// @Summary Télécharger un fichier source
+// @Description Télécharge un fichier source spécifique d'un job par son nom
+// @Tags Storage
+// @Accept json
+// @Produce application/octet-stream
+// @Produce text/markdown
+// @Produce text/css
+// @Produce application/javascript
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Param filename path string true "Nom du fichier à télécharger"
+// @Success 200 {file} file "Contenu du fichier"
+// @Header 200 {string} Content-Type "Type MIME du fichier"
+// @Header 200 {string} Content-Disposition "attachment; filename=..."
+// @Failure 400 {object} models.ErrorResponse "Paramètres invalides"
+// @Failure 404 {object} models.ErrorResponse "Fichier non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/jobs/{job_id}/sources/{filename} [get]
 func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 	// Récupérer les paramètres déjà validés
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
@@ -146,6 +195,22 @@ func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 }
 
 // DownloadResult télécharge un fichier de résultat
+// @Summary Télécharger un résultat généré
+// @Description Télécharge un fichier spécifique des résultats générés d'un cours
+// @Tags Storage
+// @Accept json
+// @Produce application/octet-stream
+// @Produce text/html
+// @Produce text/css
+// @Produce application/javascript
+// @Param course_id path string true "ID du cours" Format(uuid)
+// @Param filename path string true "Nom du fichier à télécharger"
+// @Success 200 {file} file "Contenu du fichier généré"
+// @Header 200 {string} Content-Type "Type MIME du fichier"
+// @Failure 400 {object} models.ErrorResponse "Paramètres invalides"
+// @Failure 404 {object} models.ErrorResponse "Fichier non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/courses/{course_id}/results/{filename} [get]
 func (h *StorageHandlers) DownloadResult(c *gin.Context) {
 	courseIDStr := c.Param("course_id")
 	courseID, err := uuid.Parse(courseIDStr)
@@ -182,6 +247,22 @@ func (h *StorageHandlers) DownloadResult(c *gin.Context) {
 }
 
 // ListResults liste les fichiers de résultat d'un cours
+// @Summary Lister les résultats générés
+// @Description Liste tous les fichiers générés (HTML, CSS, JS, assets) pour un cours
+// @Description
+// @Description Les résultats incluent généralement:
+// @Description - `index.html` - Page principale de la présentation
+// @Description - `assets/` - Ressources (CSS, JS, images)
+// @Description - Autres fichiers générés par Slidev
+// @Tags Storage
+// @Accept json
+// @Produce json
+// @Param course_id path string true "ID du cours" Format(uuid)
+// @Success 200 {object} models.FileListResponse "Liste des fichiers de résultat"
+// @Failure 400 {object} models.ErrorResponse "ID du cours invalide"
+// @Failure 404 {object} models.ErrorResponse "Cours non trouvé ou aucun résultat"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/courses/{course_id}/results [get]
 func (h *StorageHandlers) ListResults(c *gin.Context) {
 	courseIDStr := c.Param("course_id")
 	courseID, err := uuid.Parse(courseIDStr)
@@ -202,7 +283,19 @@ func (h *StorageHandlers) ListResults(c *gin.Context) {
 	})
 }
 
-// GetJobLogs récupère les logs d'un job
+// GetJobLogs récupère les logs d'exécution d'un job
+// @Summary Récupérer les logs d'un job
+// @Description Récupère les logs détaillés d'exécution d'un job (build Slidev, erreurs, etc.)
+// @Tags Storage
+// @Accept json
+// @Produce text/plain
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Success 200 {string} string "Logs du job (format texte)"
+// @Header 200 {string} Content-Type "text/plain"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Logs non trouvés"
+// @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
+// @Router /storage/jobs/{job_id}/logs [get]
 func (h *StorageHandlers) GetJobLogs(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
 	jobID, err := uuid.Parse(jobIDStr)
@@ -221,7 +314,15 @@ func (h *StorageHandlers) GetJobLogs(c *gin.Context) {
 	c.String(http.StatusOK, logs)
 }
 
-// GetStorageInfo retourne des informations sur le storage
+// GetStorageInfo retourne des informations sur le système de stockage
+// @Summary Informations sur le stockage
+// @Description Retourne les informations de configuration et l'état du système de stockage
+// @Tags Storage
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.StorageInfo "Informations sur le stockage"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /storage/info [get]
 func (h *StorageHandlers) GetStorageInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"storage_type": "configured",

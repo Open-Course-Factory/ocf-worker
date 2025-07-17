@@ -21,29 +21,30 @@ import (
 )
 
 // @title OCF Worker API
-// @version 1.0
-// @description API de génération de cours OCF avec workers asynchrones
+// @version 2.0.0
+// @description API complète pour la génération de cours OCF avec workers asynchrones
 // @description
-// @description OCF Worker est un microservice Go pour la génération asynchrone de cours
-// @description dans le cadre du projet **Open Course Factory (OCF)**. Il traite des jobs
-// @description de génération de manière asynchrone avec une API REST et un système de
-// @description storage abstrait supportant filesystem et Garage S3.
+// @description ## 🚀 Fonctionnalités
 // @description
-// @description ## Fonctionnalités
+// @description - **Génération asynchrone** de présentations Slidev
+// @description - **Storage multi-backend** (filesystem, Garage S3)
+// @description - **Pool de workers** configurable et scalable
+// @description - **Upload multipart** de fichiers sources
+// @description - **Monitoring** en temps réel des jobs
+// @description - **Gestion des thèmes** Slidev automatique
 // @description
-// @description - ✅ **API REST complète** pour la gestion des jobs de génération
-// @description - ✅ **Storage abstrait** avec backends filesystem et Garage S3
-// @description - ✅ **Upload multipart** pour les fichiers sources
-// @description - ✅ **Gestion asynchrone** des jobs avec statuts et progression
-// @description - ✅ **Base PostgreSQL** avec GORM et types JSON personnalisés
-// @description - ✅ **Docker ready** avec docker-compose pour le développement
-// @description - ✅ **Tests complets** unitaires et d'intégration
-// @description - ✅ **Cleanup automatique** des jobs anciens
-// @description - ✅ **Health checks** et monitoring
+// @description ## 📊 Workflow
+// @description
+// @description 1. **Upload** des fichiers sources (`POST /api/v1/storage/jobs/{job_id}/sources`)
+// @description 2. **Création** du job de génération (`POST /api/v1/generate`)
+// @description 3. **Monitoring** du progress (`GET /api/v1/jobs/{job_id}`)
+// @description 4. **Téléchargement** des résultats (`GET /api/v1/storage/courses/{course_id}/results`)
 //
 // @contact.name OCF Development Team
+// @contact.url https://github.com/Open-Course-Factory/ocf-worker
+// @contact.email contact@solution-libre.fr
 //
-// @license.name GNU AGPL 3.0
+// @license.name GNU AGPL v3.0
 // @license.url https://www.gnu.org/licenses/agpl-3.0.html
 //
 // @host localhost:8081
@@ -52,22 +53,22 @@ import (
 // @schemes http https
 //
 // @tag.name Jobs
-// @tag.description Gestion des jobs de génération
+// @tag.description Gestion des jobs de génération de cours
 //
 // @tag.name Storage
-// @tag.description Stockage et récupération des fichiers
+// @tag.description Stockage et récupération des fichiers (sources et résultats)
 //
 // @tag.name Worker
-// @tag.description Monitoring et gestion des workers
+// @tag.description Monitoring et gestion du pool de workers
+//
+// @tag.name Themes
+// @tag.description Gestion automatique des thèmes Slidev
+//
+// @tag.name Archive
+// @tag.description Création et téléchargement d'archives de résultats
 //
 // @tag.name Health
 // @tag.description Health checks et monitoring du système
-//
-// @tag.name Themes
-// @tag.description Gestion des thèmes Slidev
-//
-// @externalDocs.description Documentation complète OCF
-// @externalDocs.url TBD
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {

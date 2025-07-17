@@ -45,11 +45,10 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
 	archiveHandlers := NewArchiveHandlers(storageService)
 
-	// Routes principales
-	r.GET("/health", jobHandlers.Health)
-
 	api := r.Group("/api/v1")
 	{
+		// Routes principales
+		api.GET("/health", jobHandlers.Health)
 		// Routes des jobs
 		api.POST("/generate",
 			validation.ParseGenerationRequest(),
@@ -152,6 +151,9 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 			validation.ValidateRequest(validation.ValidateCourseIDParam("course_id")),
 			archiveHandlers.CreateResultsArchive)
 	}
+
+	// Configuration Swagger
+	SetupSwagger(r)
 
 	return r
 }

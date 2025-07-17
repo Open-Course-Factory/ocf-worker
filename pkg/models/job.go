@@ -137,16 +137,18 @@ func (j *GenerationJob) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-// GenerationRequest est utilisé pour créer un nouveau job
+// GenerationRequest représente une demande de génération de cours
+// @Description Requête pour créer un nouveau job de génération
 type GenerationRequest struct {
 	JobID       uuid.UUID              `json:"job_id" binding:"required"`
 	CourseID    uuid.UUID              `json:"course_id" binding:"required"`
 	SourcePath  string                 `json:"source_path" binding:"required"`
 	CallbackURL string                 `json:"callback_url,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-}
+} // @name GenerationRequest
 
-// JobResponse est utilisé pour les réponses API
+// JobResponse représente la réponse contenant les détails d'un job
+// @Description Détails complets d'un job de génération
 type JobResponse struct {
 	ID          uuid.UUID              `json:"id"`
 	CourseID    uuid.UUID              `json:"course_id"`
@@ -162,14 +164,14 @@ type JobResponse struct {
 	UpdatedAt   time.Time              `json:"updated_at"`
 	StartedAt   *time.Time             `json:"started_at,omitempty"`
 	CompletedAt *time.Time             `json:"completed_at,omitempty"`
-}
+} // @name JobResponse
 
 // ToResponse convertit un GenerationJob en JobResponse
 func (j *GenerationJob) ToResponse() *JobResponse {
 	// Convertir les types personnalisés en types standard
 	logs := []string(j.Logs)
 	metadata := map[string]interface{}(j.Metadata)
-	
+
 	return &JobResponse{
 		ID:          j.ID,
 		CourseID:    j.CourseID,
@@ -187,6 +189,16 @@ func (j *GenerationJob) ToResponse() *JobResponse {
 		CompletedAt: j.CompletedAt,
 	}
 }
+
+// JobListResponse représente une liste de jobs
+// @Description Liste paginée de jobs
+type JobListResponse struct {
+	Jobs       []JobResponse `json:"jobs"`
+	Count      int           `json:"count" example:"25"`
+	TotalCount int           `json:"total_count,omitempty" example:"150"`
+	Page       int           `json:"page,omitempty" example:"1"`
+	PageSize   int           `json:"page_size,omitempty" example:"25"`
+} // @name JobListResponse
 
 // IsTerminal retourne true si le job est dans un état final
 func (j *GenerationJob) IsTerminal() bool {

@@ -389,11 +389,17 @@ help:
 	@echo "  logs                 Show all logs"
 	@echo "  logs-worker          Show worker logs only"
 	@echo ""
+	@echo "📚 Documentation:"
+	@echo "  swagger-generate     Générer la documentation Swagger"
+	@echo "  swagger-validate     Valider la documentation Swagger"
+	@echo "  swagger-serve        Servir la documentation localement"
+	@echo "  swagger-clean        Nettoyer les docs générées"
+	@echo ""
 	@echo "For more details, see: make <command>"
 
 
-	# ========================================
-# GARAGE STORAGE COMMANDS (À ajouter au Makefile existant)
+# ========================================
+# GARAGE STORAGE COMMANDS 
 # ========================================
 
 # Détection automatique de docker compose
@@ -555,7 +561,7 @@ stop-all:
 	@$(DOCKER_COMPOSE_CMD) --profile dev down
 
 # ========================================
-# TESTS STORAGE AVEC GARAGE (mis à jour)
+# TESTS STORAGE AVEC GARAGE
 # ========================================
 
 # Test storage API avec configuration appropriée
@@ -734,3 +740,35 @@ help-themes:
 	@echo "  make themes-install THEME=@slidev/theme-seriph"
 	@echo "  make themes-detect JOB_ID=12345"
 	@echo "  make themes-auto-install JOB_ID=12345"
+
+# Générer la documentation Swagger
+.PHONY: swagger-generate
+swagger-generate: ## Générer la documentation Swagger
+	@echo "📚 Generating Swagger documentation..."
+	swag init -g cmd/generator/main.go -o docs --parseInternal --parseDependency
+	@echo "✅ Swagger docs generated in docs/"
+
+# Valider la documentation Swagger
+.PHONY: swagger-validate
+swagger-validate: swagger-generate ## Valider la documentation Swagger
+	@echo "✅ Validating Swagger documentation..."
+	swag fmt -g cmd/generator/main.go
+	@echo "✅ Swagger documentation validated"
+
+# Servir la documentation en mode dev
+.PHONY: swagger-serve
+swagger-serve: swagger-generate ## Servir la documentation Swagger localement
+	@echo "🌐 Serving Swagger UI at http://localhost:8081/swagger/"
+	@echo "🔄 Starting OCF Worker with Swagger..."
+	$(MAKE) run
+
+# Clean swagger docs
+.PHONY: swagger-clean
+swagger-clean: ## Nettoyer la documentation générée
+	@echo "🧹 Cleaning Swagger documentation..."
+	rm -rf docs/
+	@echo "✅ Swagger docs cleaned"
+
+# Build avec génération automatique de Swagger
+.PHONY: build-with-docs
+build-with-docs: swagger-generate build ## Build avec génération de la doc Swagger

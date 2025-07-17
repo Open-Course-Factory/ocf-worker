@@ -2,3 +2,6 @@
 *.Identifier
 /storage
 cmd/generator/__debug*
+# Swagger generated docs
+docs/
+*.swagger.json

@@ -22,7 +22,17 @@ func NewHandlers(jobService jobs.JobService) *Handlers {
 	}
 }
 
-// Health check
+// Health effectue un health check du service
+// @Summary Health check du service
+// @Description Vérifie l'état de santé du service OCF Worker
+// @Description
+// @Description Retourne l'état du service, de la base de données et des composants critiques.
+// @Tags Health
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.HealthResponse "Service en bonne santé"
+// @Success 503 {object} models.ErrorResponse "Service dégradé ou en panne"
+// @Router /health [get]
 func (h *Handlers) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
@@ -31,7 +41,21 @@ func (h *Handlers) Health(c *gin.Context) {
 	})
 }
 
-// Create a new generation job
+// CreateJob crée un nouveau job de génération
+// @Summary Créer un job de génération
+// @Description Créer un nouveau job de génération de cours Slidev
+// @Description
+// @Description Le job sera traité de manière asynchrone par le pool de workers.
+// @Description Utilisez l'endpoint GET /jobs/{id} pour suivre le progress.
+// @Tags Jobs
+// @Accept json
+// @Produce json
+// @Param request body models.GenerationRequest true "Détails du job à créer"
+// @Success 201 {object} models.JobResponse "Job créé avec succès"
+// @Failure 400 {object} models.ErrorResponse "Erreur de validation"
+// @Failure 409 {object} models.ErrorResponse "Job avec cet ID existe déjà"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /generate [post]
 func (h *Handlers) CreateJob(c *gin.Context) {
 	// Récupérer la requête déjà validée
 	req := c.MustGet("validated_request").(models.GenerationRequest)
@@ -49,7 +73,25 @@ func (h *Handlers) CreateJob(c *gin.Context) {
 	c.JSON(http.StatusCreated, job.ToResponse())
 }
 
-// Get job status
+// GetJobStatus récupère le statut d'un job
+// @Summary Récupérer le statut d'un job
+// @Description Récupère les détails et le statut actuel d'un job de génération
+// @Description
+// @Description Les statuts possibles sont:
+// @Description - `pending`: Job en attente de traitement
+// @Description - `processing`: Job en cours de traitement
+// @Description - `completed`: Job terminé avec succès
+// @Description - `failed`: Job échoué (voir le champ error)
+// @Description - `timeout`: Job interrompu par timeout
+// @Tags Jobs
+// @Accept json
+// @Produce json
+// @Param id path string true "ID du job (UUID)" Format(uuid)
+// @Success 200 {object} models.JobResponse "Détails du job"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Job non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /jobs/{id} [get]
 func (h *Handlers) GetJobStatus(c *gin.Context) {
 	// Récupérer l'UUID déjà validé et parsé
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
@@ -67,8 +109,23 @@ func (h *Handlers) GetJobStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, job.ToResponse())
 }
 
-// List jobs with optional filtering
-// List jobs with optional filtering
+// ListJobs liste les jobs avec filtrage optionnel
+// @Summary Lister les jobs
+// @Description Liste les jobs de génération avec options de filtrage et pagination
+// @Description
+// @Description Permet de filtrer par statut et par course_id pour retrouver facilement
+// @Description les jobs en cours ou terminés.
+// @Tags Jobs
+// @Accept json
+// @Produce json
+// @Param status query string false "Filtrer par statut" Enums(pending,processing,completed,failed,timeout)
+// @Param course_id query string false "Filtrer par ID de cours" Format(uuid)
+// @Param limit query integer false "Nombre maximum de résultats" default(100) minimum(1) maximum(1000)
+// @Param offset query integer false "Décalage pour la pagination" default(0) minimum(0)
+// @Success 200 {object} models.JobListResponse "Liste des jobs"
+// @Failure 400 {object} models.ErrorResponse "Paramètres de requête invalides"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /jobs [get]
 func (h *Handlers) ListJobs(c *gin.Context) {
 	// Récupérer les valeurs déjà validées
 	status := c.GetString("validated_status")
