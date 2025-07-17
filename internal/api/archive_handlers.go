@@ -266,8 +266,7 @@ func (h *ArchiveHandlers) filterFiles(files []string, include, exclude []string)
 		if len(include) > 0 {
 			matched := false
 			for _, pattern := range include {
-				if matched, _ := filepath.Match(pattern, file); matched {
-					matched = true
+				if matched, _ = filepath.Match(pattern, file); matched {
 					break
 				}
 			}
