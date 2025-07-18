@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/worker"
+	_ "ocf-worker/pkg/models"
 	"strings"
 	"time"
 
@@ -25,7 +26,21 @@ func NewThemeHandlers(storageService *storage.StorageService, workspaceBase stri
 	}
 }
 
-// InstallTheme installe un thème spécifique
+// InstallTheme installe un thème Slidev spécifique
+// @Summary Installer un thème Slidev
+// @Description Installe un thème Slidev dans le système pour utilisation future
+// @Description
+// @Description L'installation peut prendre du temps selon la complexité du thème.
+// @Description Les thèmes supportés incluent les thèmes officiels (@slidev/theme-*)
+// @Description et les thèmes communautaires compatibles.
+// @Tags Themes
+// @Accept json
+// @Produce json
+// @Param request body models.ThemeInstallRequest true "Requête d'installation de thème"
+// @Success 200 {object} models.ThemeInstallResponse "Thème installé avec succès"
+// @Failure 400 {object} models.ErrorResponse "Erreur de validation"
+// @Failure 500 {object} models.ErrorResponse "Erreur d'installation"
+// @Router /themes/install [post]
 func (h *ThemeHandlers) InstallTheme(c *gin.Context) {
 	themeName := c.GetString("validated_theme_name")
 
@@ -66,7 +81,21 @@ func (h *ThemeHandlers) InstallTheme(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// DetectThemes détecte les thèmes dans les fichiers sources d'un job
+// DetectThemes détecte les thèmes requis dans les fichiers sources d'un job
+// @Summary Détecter les thèmes requis pour un job
+// @Description Analyse les fichiers sources d'un job pour détecter les thèmes Slidev requis
+// @Description
+// @Description Scanne les fichiers Markdown et de configuration pour identifier
+// @Description automatiquement les thèmes nécessaires à la génération.
+// @Tags Themes
+// @Accept json
+// @Produce json
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Success 200 {object} models.ThemeDetectionResponse "Thèmes détectés"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Job ou fichiers non trouvés"
+// @Failure 500 {object} models.ErrorResponse "Erreur de détection"
+// @Router /themes/jobs/{job_id}/detect [get]
 func (h *ThemeHandlers) DetectThemes(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
 	jobID, err := uuid.Parse(jobIDStr)
@@ -132,6 +161,20 @@ func (h *ThemeHandlers) DetectThemes(c *gin.Context) {
 }
 
 // InstallJobThemes installe automatiquement les thèmes manquants pour un job
+// @Summary Installation automatique des thèmes manquants
+// @Description Détecte et installe automatiquement tous les thèmes requis pour un job
+// @Description
+// @Description Combine la détection automatique et l'installation en une seule opération.
+// @Description Idéal pour préparer un environnement avant la génération Slidev.
+// @Tags Themes
+// @Accept json
+// @Produce json
+// @Param job_id path string true "ID du job" Format(uuid)
+// @Success 200 {object} models.ThemeAutoInstallResponse "Installation automatique terminée"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Job non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur d'installation"
+// @Router /themes/jobs/{job_id}/install [post]
 func (h *ThemeHandlers) InstallJobThemes(c *gin.Context) {
 	jobIDStr := c.Param("job_id")
 	jobID, err := uuid.Parse(jobIDStr)
@@ -189,7 +232,18 @@ func (h *ThemeHandlers) InstallJobThemes(c *gin.Context) {
 	})
 }
 
-// ListAvailableThemes liste les thèmes Slidev populaires avec leur statut d'installation
+// ListAvailableThemes liste les thèmes Slidev avec leur statut d'installation
+// @Summary Lister les thèmes Slidev disponibles
+// @Description Liste tous les thèmes Slidev populaires avec leur statut d'installation
+// @Description
+// @Description Retourne la liste des thèmes officiels et populaires pour Slidev,
+// @Description avec des informations sur leur statut d'installation dans le système.
+// @Tags Themes
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.ThemeListResponse "Liste des thèmes disponibles"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /themes/available [get]
 func (h *ThemeHandlers) ListAvailableThemes(c *gin.Context) {
 	// Créer un workspace temporaire pour vérifier les installations
 	tempWorkspace, err := worker.NewWorkspace("/tmp/theme-check", uuid.New())

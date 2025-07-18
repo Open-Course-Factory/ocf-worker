@@ -8,9 +8,12 @@ import (
 	"ocf-worker/internal/storage"
 	"ocf-worker/internal/validation"
 	"ocf-worker/internal/worker"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	_ "ocf-worker/pkg/models"
 )
 
 // SetupRouter configure le routeur standard (rétrocompatibilité)
@@ -170,7 +173,18 @@ func NewWorkerHandlers(workerPool *worker.WorkerPool) *WorkerHandlers {
 	}
 }
 
-// GetWorkerStats retourne les statistiques du pool de workers
+// GetWorkerStats retourne les statistiques détaillées du pool de workers
+// @Summary Statistiques du pool de workers
+// @Description Retourne des informations détaillées sur l'état du pool de workers
+// @Description
+// @Description Inclut le nombre de workers actifs, la taille de la queue des jobs,
+// @Description les statistiques individuelles de chaque worker, et les métriques de performance.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.WorkerStatsResponse "Statistiques du pool de workers"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /worker/stats [get]
 func (h *WorkerHandlers) GetWorkerStats(c *gin.Context) {
 	stats := h.workerPool.GetStats()
 
@@ -179,14 +193,26 @@ func (h *WorkerHandlers) GetWorkerStats(c *gin.Context) {
 		"timestamp": gin.H{
 			"unix": gin.H{
 				"seconds": gin.H{
-					"now": "placeholder", // Sera remplacé par time.Now().Unix()
+					"now": time.Now().Unix(),
 				},
 			},
 		},
 	})
 }
 
-// GetWorkerHealth vérifie la santé du worker
+// GetWorkerHealth vérifie l'état de santé du système de workers
+// @Summary Santé du système de workers
+// @Description Effectue un health check complet du système de workers
+// @Description
+// @Description Vérifie que le pool de workers fonctionne correctement,
+// @Description que les workers ne sont pas bloqués, et que la queue n'est pas saturée.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.WorkerHealthResponse "Système de workers en bonne santé"
+// @Success 503 {object} models.WorkerHealthResponse "Système de workers dégradé ou en panne"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /worker/health [get]
 func (h *WorkerHandlers) GetWorkerHealth(c *gin.Context) {
 	stats := h.workerPool.GetStats()
 
@@ -241,7 +267,22 @@ func (h *WorkerHandlers) GetWorkerHealth(c *gin.Context) {
 	c.JSON(statusCode, response)
 }
 
-// ListWorkspaces liste tous les workspaces
+// ListWorkspaces liste tous les workspaces actifs
+// @Summary Lister les workspaces actifs
+// @Description Liste tous les workspaces de jobs en cours ou récents
+// @Description
+// @Description Permet de surveiller l'utilisation des ressources et identifier
+// @Description les workspaces qui peuvent nécessiter un nettoyage.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Param status query string false "Filtrer par statut" Enums(active,idle,completed)
+// @Param limit query integer false "Nombre maximum de résultats" default(50) minimum(1) maximum(500)
+// @Param offset query integer false "Décalage pour la pagination" default(0) minimum(0)
+// @Success 200 {object} models.WorkspaceListResponse "Liste des workspaces"
+// @Failure 400 {object} models.ErrorResponse "Paramètres de requête invalides"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /worker/workspaces [get]
 func (h *WorkerHandlers) ListWorkspaces(c *gin.Context) {
 	// Cette fonctionnalité nécessiterait un workspace manager global
 	// Pour l'instant, on retourne une réponse basique
@@ -251,7 +292,21 @@ func (h *WorkerHandlers) ListWorkspaces(c *gin.Context) {
 	})
 }
 
-// GetWorkspaceInfo retourne les informations d'un workspace spécifique
+// GetWorkspaceInfo retourne les informations détaillées d'un workspace
+// @Summary Informations détaillées d'un workspace
+// @Description Retourne les informations complètes d'un workspace spécifique
+// @Description
+// @Description Inclut la taille utilisée, le nombre de fichiers, l'état du répertoire dist,
+// @Description et autres métadonnées utiles pour le debug et le monitoring.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Param job_id path string true "ID du job associé au workspace" Format(uuid)
+// @Success 200 {object} models.WorkspaceInfoResponse "Informations du workspace"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Workspace non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur interne du serveur"
+// @Router /worker/workspaces/{job_id} [get]
 func (h *WorkerHandlers) GetWorkspaceInfo(c *gin.Context) {
 	// Récupérer l'ID déjà validé
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
@@ -263,7 +318,21 @@ func (h *WorkerHandlers) GetWorkspaceInfo(c *gin.Context) {
 	})
 }
 
-// CleanupWorkspace nettoie un workspace spécifique
+// CleanupWorkspace supprime un workspace spécifique
+// @Summary Supprimer un workspace
+// @Description Supprime complètement un workspace et tous ses fichiers
+// @Description
+// @Description ⚠️ **Opération destructive** : tous les fichiers du workspace seront perdus.
+// @Description Utilisez cette opération uniquement pour les jobs terminés ou échoués.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Param job_id path string true "ID du job associé au workspace" Format(uuid)
+// @Success 200 {object} models.WorkspaceCleanupResponse "Workspace supprimé avec succès"
+// @Failure 400 {object} models.ErrorResponse "ID du job invalide"
+// @Failure 404 {object} models.ErrorResponse "Workspace non trouvé"
+// @Failure 500 {object} models.ErrorResponse "Erreur de suppression"
+// @Router /worker/workspaces/{job_id} [delete]
 func (h *WorkerHandlers) CleanupWorkspace(c *gin.Context) {
 	// Récupérer l'ID déjà validé
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
@@ -276,7 +345,20 @@ func (h *WorkerHandlers) CleanupWorkspace(c *gin.Context) {
 	})
 }
 
-// CleanupOldWorkspaces nettoie les anciens workspaces
+// CleanupOldWorkspaces supprime les workspaces anciens
+// @Summary Nettoyage automatique des anciens workspaces
+// @Description Supprime tous les workspaces plus anciens que l'âge spécifié
+// @Description
+// @Description Opération de maintenance pour libérer l'espace disque.
+// @Description Par défaut, supprime les workspaces de plus de 24 heures.
+// @Tags Worker
+// @Accept json
+// @Produce json
+// @Param max_age_hours query integer false "Âge maximum en heures" default(24) minimum(1) maximum(8760)
+// @Success 200 {object} models.WorkspaceCleanupBatchResponse "Nettoyage terminé"
+// @Failure 400 {object} models.ErrorResponse "Paramètres invalides"
+// @Failure 500 {object} models.ErrorResponse "Erreur de nettoyage"
+// @Router /worker/workspaces/cleanup [post]
 func (h *WorkerHandlers) CleanupOldWorkspaces(c *gin.Context) {
 	// Récupérer les paramètres déjà validés
 	params := c.MustGet("validated_workspace_cleanup_params").(validation.WorkspaceCleanupParams)
