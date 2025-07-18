@@ -3,7 +3,8 @@ package jobs
 import (
 	"context"
 	"time"
-	"ocf-worker/pkg/models"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -36,7 +37,7 @@ func NewJobRepository(db *gorm.DB) JobRepository {
 func (r *jobRepository) Create(ctx context.Context, job *models.GenerationJob) error {
 	job.CreatedAt = time.Now()
 	job.UpdatedAt = time.Now()
-	
+
 	return r.db.WithContext(ctx).Create(job).Error
 }
 
@@ -51,27 +52,27 @@ func (r *jobRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Gene
 
 func (r *jobRepository) List(ctx context.Context, filters JobFilters) ([]*models.GenerationJob, error) {
 	var jobs []*models.GenerationJob
-	
+
 	query := r.db.WithContext(ctx).Model(&models.GenerationJob{})
-	
+
 	if filters.Status != "" {
 		query = query.Where("status = ?", filters.Status)
 	}
-	
+
 	if filters.CourseID != nil {
 		query = query.Where("course_id = ?", *filters.CourseID)
 	}
-	
+
 	if filters.Limit > 0 {
 		query = query.Limit(filters.Limit)
 	}
-	
+
 	if filters.Offset > 0 {
 		query = query.Offset(filters.Offset)
 	}
-	
+
 	query = query.Order("created_at DESC")
-	
+
 	err := query.Find(&jobs).Error
 	return jobs, err
 }
@@ -87,26 +88,26 @@ func (r *jobRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status m
 		"progress":   progress,
 		"updated_at": time.Now(),
 	}
-	
+
 	if errorMsg != "" {
 		updates["error"] = errorMsg
 	}
-	
+
 	if status == models.StatusProcessing {
 		updates["started_at"] = time.Now()
 	}
-	
+
 	if status == models.StatusCompleted || status == models.StatusFailed || status == models.StatusTimeout {
 		updates["completed_at"] = time.Now()
 	}
-	
+
 	return r.db.WithContext(ctx).Model(&models.GenerationJob{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *jobRepository) DeleteOldJobs(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.WithContext(ctx).Where("created_at < ? AND status IN ?", olderThan, 
+	result := r.db.WithContext(ctx).Where("created_at < ? AND status IN ?", olderThan,
 		[]models.JobStatus{models.StatusCompleted, models.StatusFailed, models.StatusTimeout}).
 		Delete(&models.GenerationJob{})
-	
+
 	return result.RowsAffected, result.Error
 }

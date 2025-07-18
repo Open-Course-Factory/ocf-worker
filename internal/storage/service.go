@@ -7,9 +7,9 @@ import (
 	"mime/multipart"
 	"path/filepath"
 	"strings"
-	
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/storage"
 	"github.com/google/uuid"
-	"ocf-worker/pkg/storage"
 )
 
 type StorageService struct {
@@ -30,15 +30,15 @@ func (s *StorageService) UploadJobSources(ctx context.Context, jobID uuid.UUID, 
 			return fmt.Errorf("failed to open file %s: %w", fileHeader.Filename, err)
 		}
 		defer file.Close()
-		
+
 		// Construire le chemin: sources/{job_id}/{filename}
 		path := fmt.Sprintf("sources/%s/%s", jobID.String(), fileHeader.Filename)
-		
+
 		if err := s.storage.Upload(ctx, path, file); err != nil {
 			return fmt.Errorf("failed to upload file %s: %w", fileHeader.Filename, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -61,7 +61,7 @@ func (s *StorageService) ListJobSources(ctx context.Context, jobID uuid.UUID) ([
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Retourner seulement les noms de fichiers (sans le préfixe)
 	var filenames []string
 	for _, file := range files {
@@ -72,7 +72,7 @@ func (s *StorageService) ListJobSources(ctx context.Context, jobID uuid.UUID) ([
 			}
 		}
 	}
-	
+
 	return filenames, nil
 }
 
@@ -101,7 +101,7 @@ func (s *StorageService) ListResults(ctx context.Context, courseID uuid.UUID) ([
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filenames []string
 	for _, file := range files {
 		if strings.HasPrefix(file, prefix) {
@@ -111,7 +111,7 @@ func (s *StorageService) ListResults(ctx context.Context, courseID uuid.UUID) ([
 			}
 		}
 	}
-	
+
 	return filenames, nil
 }
 
@@ -124,18 +124,18 @@ func (s *StorageService) SaveJobLog(ctx context.Context, jobID uuid.UUID, logCon
 // GetJobLog récupère les logs d'un job
 func (s *StorageService) GetJobLog(ctx context.Context, jobID uuid.UUID) (string, error) {
 	path := fmt.Sprintf("logs/%s/generation.log", jobID.String())
-	
+
 	reader, err := s.storage.Download(ctx, path)
 	if err != nil {
 		return "", err
 	}
-	
+
 	buf := make([]byte, 1024*1024) // 1MB max pour les logs
 	n, err := reader.Read(buf)
 	if err != nil && err != io.EOF {
 		return "", err
 	}
-	
+
 	return string(buf[:n]), nil
 }
 
@@ -149,11 +149,11 @@ func (s *StorageService) CleanupJob(ctx context.Context, jobID uuid.UUID) error 
 			s.storage.Delete(ctx, path) // Ignorer les erreurs de suppression
 		}
 	}
-	
+
 	// Supprimer les logs
 	logPath := fmt.Sprintf("logs/%s/generation.log", jobID.String())
 	s.storage.Delete(ctx, logPath) // Ignorer les erreurs
-	
+
 	return nil
 }
 
@@ -162,29 +162,29 @@ func (s *StorageService) ValidateFile(filename string) error {
 	// Vérifier l'extension
 	ext := strings.ToLower(filepath.Ext(filename))
 	allowedExts := map[string]bool{
-		".md":   true,
-		".css":  true,
-		".js":   true,
-		".json": true,
-		".png":  true,
-		".jpg":  true,
-		".jpeg": true,
-		".gif":  true,
-		".svg":  true,
-		".woff": true,
+		".md":    true,
+		".css":   true,
+		".js":    true,
+		".json":  true,
+		".png":   true,
+		".jpg":   true,
+		".jpeg":  true,
+		".gif":   true,
+		".svg":   true,
+		".woff":  true,
 		".woff2": true,
-		".ttf":  true,
-		".eot":  true,
+		".ttf":   true,
+		".eot":   true,
 	}
-	
+
 	if !allowedExts[ext] {
 		return fmt.Errorf("file type not allowed: %s", ext)
 	}
-	
+
 	// Vérifier le nom de fichier
 	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
 		return fmt.Errorf("invalid filename: %s", filename)
 	}
-	
+
 	return nil
 }

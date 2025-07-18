@@ -3,9 +3,9 @@ package storage
 import (
 	"fmt"
 
-	"ocf-worker/internal/storage/filesystem"
-	"ocf-worker/internal/storage/garage"
-	"ocf-worker/pkg/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage/filesystem"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage/garage"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/storage"
 )
 
 // NewStorage crée une nouvelle instance de storage basée sur la configuration

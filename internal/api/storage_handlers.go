@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"ocf-worker/internal/storage"
-	"ocf-worker/internal/validation"
-	_ "ocf-worker/pkg/models"
 	"path/filepath"
+
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
+	_ "github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

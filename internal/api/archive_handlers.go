@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ocf-worker/internal/storage"
-	"ocf-worker/internal/validation"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

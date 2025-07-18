@@ -4,16 +4,17 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"ocf-worker/internal/jobs"
-	"ocf-worker/internal/storage"
-	"ocf-worker/internal/validation"
-	"ocf-worker/internal/worker"
 	"time"
+
+	"github.com/Open-Course-Factory/ocf-worker/internal/jobs"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
+	"github.com/Open-Course-Factory/ocf-worker/internal/worker"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	_ "ocf-worker/pkg/models"
+	_ "github.com/Open-Course-Factory/ocf-worker/pkg/models"
 )
 
 // SetupRouter configure le routeur standard (rétrocompatibilité)

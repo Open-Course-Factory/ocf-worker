@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"ocf-worker/pkg/models"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 )
 
 // SlidevRunner exécute les commandes Slidev

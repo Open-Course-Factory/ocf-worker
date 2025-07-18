@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"ocf-worker/internal/storage"
-	"ocf-worker/pkg/models"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

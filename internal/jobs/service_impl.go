@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 	"time"
-	"ocf-worker/pkg/models"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -20,7 +21,7 @@ type jobServiceImpl struct {
 func NewJobServiceImpl(repo JobRepository) JobService {
 	return &jobServiceImpl{
 		repo:   repo,
-		tracer: otel.Tracer("ocf-worker/jobs"),
+		tracer: otel.Tracer("github.com/Open-Course-Factory/ocf-worker/jobs"),
 	}
 }
 
@@ -125,7 +126,7 @@ func (s *jobServiceImpl) AddJobLog(ctx context.Context, id uuid.UUID, logEntry s
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	logWithTimestamp := fmt.Sprintf("[%s] %s", timestamp, logEntry)
-	
+
 	// Ajouter le log en utilisant le type StringSlice
 	job.Logs = append(job.Logs, logWithTimestamp)
 	job.UpdatedAt = time.Now()

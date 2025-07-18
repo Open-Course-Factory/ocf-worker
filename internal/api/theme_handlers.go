@@ -4,11 +4,12 @@ package api
 import (
 	"context"
 	"net/http"
-	"ocf-worker/internal/storage"
-	"ocf-worker/internal/worker"
-	_ "ocf-worker/pkg/models"
 	"strings"
 	"time"
+
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/worker"
+	_ "github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

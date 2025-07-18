@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"ocf-worker/internal/api"
-	"ocf-worker/internal/config"
-	"ocf-worker/internal/database"
-	"ocf-worker/internal/jobs"
-	"ocf-worker/internal/storage"
-	"ocf-worker/internal/worker"
+	"github.com/Open-Course-Factory/ocf-worker/internal/api"
+	"github.com/Open-Course-Factory/ocf-worker/internal/config"
+	"github.com/Open-Course-Factory/ocf-worker/internal/database"
+	"github.com/Open-Course-Factory/ocf-worker/internal/jobs"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/internal/worker"
 
 	"github.com/lpernett/godotenv"
 )

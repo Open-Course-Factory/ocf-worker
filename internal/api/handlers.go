@@ -3,10 +3,11 @@ package api
 import (
 	"log"
 	"net/http"
-	"ocf-worker/internal/jobs"
-	"ocf-worker/internal/validation"
-	"ocf-worker/pkg/models"
 	"time"
+
+	"github.com/Open-Course-Factory/ocf-worker/internal/jobs"
+	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

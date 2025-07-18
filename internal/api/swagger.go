@@ -2,8 +2,9 @@
 package api
 
 import (
-	"ocf-worker/docs"
 	"os"
+
+	docs "github.com/Open-Course-Factory/ocf-worker/docs"
 
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"

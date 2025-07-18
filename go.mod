@@ -1,4 +1,4 @@
-module ocf-worker
+module github.com/Open-Course-Factory/ocf-worker
 
 go 1.23.0
 

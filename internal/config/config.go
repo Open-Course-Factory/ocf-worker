@@ -2,10 +2,11 @@
 package config
 
 import (
-	"ocf-worker/pkg/storage"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/storage"
 )
 
 type Config struct {

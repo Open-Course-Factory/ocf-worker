@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ocf-worker/internal/jobs"
-	"ocf-worker/internal/storage"
-	"ocf-worker/pkg/models"
+	"github.com/Open-Course-Factory/ocf-worker/internal/jobs"
+	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 )
 
 // WorkerPool gère un pool de workers pour traiter les jobs de génération

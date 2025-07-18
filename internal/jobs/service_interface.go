@@ -3,7 +3,8 @@ package jobs
 import (
 	"context"
 	"time"
-	"ocf-worker/pkg/models"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/google/uuid"
 )

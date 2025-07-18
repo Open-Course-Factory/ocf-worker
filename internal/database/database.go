@@ -3,7 +3,8 @@ package database
 import (
 	"fmt"
 	"log"
-	"ocf-worker/pkg/models"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -50,7 +51,7 @@ func Connect(databaseURL string, logLevel string) (*DB, error) {
 
 func (db *DB) Migrate() error {
 	log.Println("Running database migrations...")
-	
+
 	if err := db.AutoMigrate(&models.GenerationJob{}); err != nil {
 		return fmt.Errorf("failed to migrate GenerationJob: %w", err)
 	}

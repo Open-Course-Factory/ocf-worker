@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"ocf-worker/pkg/storage"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

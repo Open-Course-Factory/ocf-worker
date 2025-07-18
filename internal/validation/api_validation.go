@@ -5,11 +5,12 @@ package validation
 import (
 	"fmt"
 	"mime/multipart"
-	"ocf-worker/pkg/models"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/google/uuid"
 )

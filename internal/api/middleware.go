@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"ocf-worker/internal/validation"
+	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
 
 	"github.com/gin-gonic/gin"
 )
