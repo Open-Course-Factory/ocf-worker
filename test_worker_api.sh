@@ -74,8 +74,9 @@ wait_for_service() {
 # Test du health check
 test_health() {
     log_info "Testing health check..."
+    log_info "Calling $API_BASE/api/v1/health"
     
-    HEALTH_RESPONSE=$(curl -s "$API_BASE/health")
+    HEALTH_RESPONSE=$(curl -s "$API_BASE/api/v1/health")
     echo "$HEALTH_RESPONSE" | jq .
     
     if echo "$HEALTH_RESPONSE" | jq -e '.status == "healthy"' >/dev/null; then
@@ -106,6 +107,7 @@ test_worker_stats() {
 # Test de santé du worker
 test_worker_health() {
     log_info "Testing worker health..."
+    log_info "Calling $API_BASE/api/v1/worker/health"
     
     HEALTH_RESPONSE=$(curl -s "$API_BASE/api/v1/worker/health")
     echo "$HEALTH_RESPONSE" | jq .

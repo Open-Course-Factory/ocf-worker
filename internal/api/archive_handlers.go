@@ -12,6 +12,7 @@ import (
 
 	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
 	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,22 +28,6 @@ func NewArchiveHandlers(storageService *storage.StorageService) *ArchiveHandlers
 	return &ArchiveHandlers{
 		storageService: storageService,
 	}
-}
-
-// ArchiveFormat définit les formats d'archive supportés
-type ArchiveFormat string
-
-const (
-	FormatZIP ArchiveFormat = "zip"
-	FormatTAR ArchiveFormat = "tar"
-)
-
-// ArchiveRequest contient les paramètres de création d'archive
-type ArchiveRequest struct {
-	Format   ArchiveFormat `json:"format" binding:"required"`
-	Include  []string      `json:"include,omitempty"` // Patterns de fichiers à inclure
-	Exclude  []string      `json:"exclude,omitempty"` // Patterns de fichiers à exclure
-	Compress bool          `json:"compress"`          // Compression activée
 }
 
 // DownloadResultsArchive crée et télécharge une archive des résultats d'un cours
@@ -64,11 +49,11 @@ func (h *ArchiveHandlers) DownloadResultsArchive(c *gin.Context) {
 	courseID := c.MustGet("validated_course_id").(uuid.UUID)
 
 	// Paramètres optionnels
-	format := ArchiveFormat(c.DefaultQuery("format", "zip"))
+	format := models.ArchiveFormat(c.DefaultQuery("format", "zip"))
 	compress := c.DefaultQuery("compress", "true") == "true"
 
 	// Validation du format
-	if format != FormatZIP && format != FormatTAR {
+	if format != models.FormatZIP && format != models.FormatTAR {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Unsupported archive format. Supported: zip, tar",
 		})
@@ -124,7 +109,7 @@ func (h *ArchiveHandlers) DownloadResultsArchive(c *gin.Context) {
 func (h *ArchiveHandlers) CreateResultsArchive(c *gin.Context) {
 	courseID := c.MustGet("validated_course_id").(uuid.UUID)
 
-	var req ArchiveRequest
+	var req models.ArchiveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request format: " + err.Error(),
@@ -133,7 +118,7 @@ func (h *ArchiveHandlers) CreateResultsArchive(c *gin.Context) {
 	}
 
 	// Validation du format
-	if req.Format != FormatZIP && req.Format != FormatTAR {
+	if req.Format != models.FormatZIP && req.Format != models.FormatTAR {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "Unsupported archive format",
 			"supported_formats": []string{"zip", "tar"},
@@ -193,11 +178,11 @@ func (h *ArchiveHandlers) CreateResultsArchive(c *gin.Context) {
 }
 
 // createArchiveStream crée une archive en streaming directement vers la réponse
-func (h *ArchiveHandlers) createArchiveStream(w io.Writer, courseID uuid.UUID, files []string, format ArchiveFormat, compress bool) error {
+func (h *ArchiveHandlers) createArchiveStream(w io.Writer, courseID uuid.UUID, files []string, format models.ArchiveFormat, compress bool) error {
 	switch format {
-	case FormatZIP:
+	case models.FormatZIP:
 		return h.createZipStream(w, courseID, files, compress)
-	case FormatTAR:
+	case models.FormatTAR:
 		return h.createTarStream(w, courseID, files, compress)
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
@@ -248,7 +233,7 @@ func (h *ArchiveHandlers) createTarStream(w io.Writer, courseID uuid.UUID, files
 }
 
 // createArchiveInMemory crée une archive en mémoire
-func (h *ArchiveHandlers) createArchiveInMemory(courseID uuid.UUID, files []string, format ArchiveFormat, compress bool) (io.Reader, error) {
+func (h *ArchiveHandlers) createArchiveInMemory(courseID uuid.UUID, files []string, format models.ArchiveFormat, compress bool) (io.Reader, error) {
 	// TODO: Implémenter la création d'archive en mémoire pour CreateResultsArchive
 	return nil, fmt.Errorf("in-memory archive creation not yet implemented")
 }

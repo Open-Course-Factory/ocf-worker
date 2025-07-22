@@ -21,7 +21,7 @@ import (
 )
 
 // @title OCF Worker API
-// @version 2.0.0
+// @version 0.0.1
 // @description API complète pour la génération de cours OCF avec workers asynchrones
 // @description
 // @description ## 🚀 Fonctionnalités

@@ -77,7 +77,7 @@ func GetSwaggerInfo() SwaggerInfo {
 	return SwaggerInfo{
 		Title:       "OCF Worker API",
 		Description: "API complète pour la génération de cours OCF",
-		Version:     "2.0.0",
+		Version:     "0.0.1",
 		Host:        "localhost:8081",
 		BasePath:    "/api/v1",
 	}
