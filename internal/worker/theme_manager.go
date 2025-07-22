@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 )
 
 // ThemeManager gère l'installation et la détection des thèmes Slidev
@@ -21,34 +23,6 @@ type ThemeManager struct {
 	workspaceBase string
 	npmCommand    string
 	mu            sync.RWMutex
-}
-
-// ThemeInfo contient les informations sur un thème
-type ThemeInfo struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Installed   bool   `json:"installed"`
-	Description string `json:"description"`
-	Homepage    string `json:"homepage"`
-}
-
-// ThemeInstallResult contient le résultat d'une installation
-type ThemeInstallResult struct {
-	Theme     string        `json:"theme"`
-	Success   bool          `json:"success"`
-	Error     string        `json:"error,omitempty"`
-	Duration  time.Duration `json:"duration"`
-	Logs      []string      `json:"logs"`
-	Installed bool          `json:"installed"`
-	ExitCode  int           `json:"exit_code,omitempty"`
-	pipes     *installPipes `json:"-"` // Non exporté
-}
-
-// installPipes structure pour gérer les pipes de manière centralisée
-type installPipes struct {
-	stdout io.ReadCloser
-	stderr io.ReadCloser
-	stdin  io.WriteCloser
 }
 
 // NewThemeManager crée un nouveau gestionnaire de thèmes
@@ -144,8 +118,8 @@ func (tm *ThemeManager) isThemeInstalled(workspace *Workspace, theme string) boo
 }
 
 // InstallMultipleThemes installe plusieurs thèmes
-func (tm *ThemeManager) InstallMultipleThemes(ctx context.Context, workspace *Workspace, themes []string) ([]*ThemeInstallResult, error) {
-	var results []*ThemeInstallResult
+func (tm *ThemeManager) InstallMultipleThemes(ctx context.Context, workspace *Workspace, themes []string) ([]*models.ThemeInstallResult, error) {
+	var results []*models.ThemeInstallResult
 
 	for _, theme := range themes {
 		log.Printf("Installing theme %s (%d/%d)", theme, len(results)+1, len(themes))
@@ -166,8 +140,8 @@ func (tm *ThemeManager) InstallMultipleThemes(ctx context.Context, workspace *Wo
 }
 
 // ListInstalledThemes liste les thèmes installés
-func (tm *ThemeManager) ListInstalledThemes(ctx context.Context, workspace *Workspace) ([]ThemeInfo, error) {
-	var themes []ThemeInfo
+func (tm *ThemeManager) ListInstalledThemes(ctx context.Context, workspace *Workspace) ([]models.ThemeInfo, error) {
+	var themes []models.ThemeInfo
 
 	// Lire package.json
 	if !workspace.FileExists("package.json") {
@@ -189,7 +163,7 @@ func (tm *ThemeManager) ListInstalledThemes(ctx context.Context, workspace *Work
 		if deps, ok := pkg[depType].(map[string]interface{}); ok {
 			for name, version := range deps {
 				if strings.Contains(name, "slidev-theme-") || strings.Contains(name, "@slidev/theme-") {
-					themes = append(themes, ThemeInfo{
+					themes = append(themes, models.ThemeInfo{
 						Name:      name,
 						Version:   fmt.Sprintf("%v", version),
 						Installed: true,
@@ -249,10 +223,10 @@ func (w *Workspace) readFileContent(filename string) (string, error) {
 	return string(content), nil
 }
 
-// InstallTheme installe un thème Slidev - VERSION CORRIGÉE
-func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, theme string) (*ThemeInstallResult, error) {
+// InstallTheme installe un thème Slidev
+func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, theme string) (*models.ThemeInstallResult, error) {
 	startTime := time.Now()
-	result := &ThemeInstallResult{
+	result := &models.ThemeInstallResult{
 		Theme:   theme,
 		Success: false,
 		Logs:    []string{},
@@ -293,12 +267,12 @@ func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, 
 	// Gérer l'installation de manière robuste
 	if err := tm.handleInstallation(installCtx, cmd, result); err != nil {
 		// La commande a échoué, mais on a des logs utiles
-		result.Duration = time.Since(startTime)
+		result.Duration = int64(time.Since(startTime))
 		return result, err
 	}
 
 	// Finaliser l'installation
-	result.Duration = time.Since(startTime)
+	result.Duration = int64(time.Since(startTime))
 	result.Installed = tm.isThemeInstalled(workspace, normalizedTheme)
 	result.Success = result.Installed
 
@@ -329,7 +303,7 @@ func (tm *ThemeManager) prepareInstallCommand(ctx context.Context, workspace *Wo
 }
 
 // setupCommandPipes configure les pipes de manière sécurisée
-func (tm *ThemeManager) setupCommandPipes(cmd *exec.Cmd, result *ThemeInstallResult) error {
+func (tm *ThemeManager) setupCommandPipes(cmd *exec.Cmd, result *models.ThemeInstallResult) error {
 	// Configurer stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -349,17 +323,17 @@ func (tm *ThemeManager) setupCommandPipes(cmd *exec.Cmd, result *ThemeInstallRes
 	}
 
 	// Stocker les pipes pour la gestion
-	result.pipes = &installPipes{
-		stdout: stdout,
-		stderr: stderr,
-		stdin:  stdin,
+	result.Pipes = &models.InstallPipes{
+		Stdout: stdout,
+		Stderr: stderr,
+		Stdin:  stdin,
 	}
 
 	return nil
 }
 
 // handleInstallation gère l'installation de manière robuste
-func (tm *ThemeManager) handleInstallation(ctx context.Context, cmd *exec.Cmd, result *ThemeInstallResult) error {
+func (tm *ThemeManager) handleInstallation(ctx context.Context, cmd *exec.Cmd, result *models.ThemeInstallResult) error {
 	// Channels pour la coordination
 	logsChan := make(chan string, 100)
 	errChan := make(chan error, 3)
@@ -373,18 +347,18 @@ func (tm *ThemeManager) handleInstallation(ctx context.Context, cmd *exec.Cmd, r
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		tm.safeOutputCapture(captureCtx, result.pipes.stdout, "STDOUT", logsChan, errChan)
+		tm.safeOutputCapture(captureCtx, result.Pipes.Stdout, "STDOUT", logsChan, errChan)
 	}()
 	go func() {
 		defer wg.Done()
-		tm.safeOutputCapture(captureCtx, result.pipes.stderr, "STDERR", logsChan, errChan)
+		tm.safeOutputCapture(captureCtx, result.Pipes.Stderr, "STDERR", logsChan, errChan)
 	}()
 
 	// Gérer stdin de manière sécurisée
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		tm.safeInputHandler(captureCtx, result.pipes.stdin, errChan)
+		tm.safeInputHandler(captureCtx, result.Pipes.Stdin, errChan)
 	}()
 
 	// Collecter les logs
@@ -571,7 +545,7 @@ func (tm *ThemeManager) buildInstallEnvironment() []string {
 }
 
 // AutoInstallMissingThemes installe automatiquement les thèmes manquants - VERSION ROBUSTE
-func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace *Workspace) ([]*ThemeInstallResult, error) {
+func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace *Workspace) ([]*models.ThemeInstallResult, error) {
 	log.Printf("Auto-detecting missing Slidev themes...")
 
 	// Détecter les thèmes manquants
@@ -582,7 +556,7 @@ func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace 
 
 	if len(missingThemes) == 0 {
 		log.Printf("No missing themes detected")
-		return []*ThemeInstallResult{}, nil
+		return []*models.ThemeInstallResult{}, nil
 	}
 
 	log.Printf("Found %d missing themes: %v", len(missingThemes), missingThemes)
@@ -592,7 +566,7 @@ func (tm *ThemeManager) AutoInstallMissingThemes(ctx context.Context, workspace 
 	semaphore := make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var results []*ThemeInstallResult
+	var results []*models.ThemeInstallResult
 
 	// Installer les thèmes avec limite de concurrence
 	for _, theme := range missingThemes {

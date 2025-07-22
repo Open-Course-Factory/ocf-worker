@@ -9,7 +9,7 @@ import (
 
 	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
 	"github.com/Open-Course-Factory/ocf-worker/internal/worker"
-	_ "github.com/Open-Course-Factory/ocf-worker/pkg/models"
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -290,7 +290,7 @@ func (h *ThemeHandlers) ListAvailableThemes(c *gin.Context) {
 		{"@slidev/theme-minimal", "Minimal clean theme", "https://github.com/slidevjs/themes/tree/main/packages/theme-minimal"},
 	}
 
-	var themes []worker.ThemeInfo
+	var themes []models.ThemeInfo
 
 	// Vérifier le statut d'installation pour chaque thème
 	for _, theme := range themeList {
@@ -309,7 +309,7 @@ func (h *ThemeHandlers) ListAvailableThemes(c *gin.Context) {
 			}
 		}
 
-		themes = append(themes, worker.ThemeInfo{
+		themes = append(themes, models.ThemeInfo{
 			Name:        theme.name,
 			Version:     version,
 			Installed:   installed,
@@ -330,7 +330,7 @@ func (h *ThemeHandlers) ListAvailableThemes(c *gin.Context) {
 }
 
 // countInstalledThemes compte le nombre de thèmes installés
-func countInstalledThemes(themes []worker.ThemeInfo) int {
+func countInstalledThemes(themes []models.ThemeInfo) int {
 	count := 0
 	for _, theme := range themes {
 		if theme.Installed {

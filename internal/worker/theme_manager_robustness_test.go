@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestThemeManagerConcurrency(t *testing.T) {
 	const numGoroutines = 5
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var results []*ThemeInstallResult
+	var results []*models.ThemeInstallResult
 	var errors []error
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
