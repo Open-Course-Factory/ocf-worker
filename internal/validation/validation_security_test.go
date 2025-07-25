@@ -67,7 +67,7 @@ func TestFilenameValidationSecurity(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := validator.ValidateFilename(tc.filename)
+			result := validator.ValidateFilename(tc.filename, false)
 
 			if tc.valid {
 				assert.True(t, result.Valid, "Expected filename to be valid: %s", tc.filename)
@@ -316,6 +316,6 @@ func BenchmarkFilenameValidation(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		filename := testFiles[i%len(testFiles)]
-		validator.ValidateFilename(filename)
+		validator.ValidateFilename(filename, false)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -371,7 +372,7 @@ func (p *JobProcessor) debugWorkspaceContents(workspace *Workspace, jobID uuid.U
 
 // downloadSources télécharge les fichiers sources dans le workspace
 func (p *JobProcessor) downloadSources(ctx context.Context, job *models.GenerationJob, workspace *Workspace) error {
-	// Lister les fichiers sources
+	// Lister les fichiers sources (peut inclure des chemins avec dossiers)
 	sourceFiles, err := p.storageService.ListJobSources(ctx, job.ID)
 	if err != nil {
 		return fmt.Errorf("failed to list source files: %w", err)
@@ -381,20 +382,69 @@ func (p *JobProcessor) downloadSources(ctx context.Context, job *models.Generati
 		return fmt.Errorf("no source files found for job %s", job.ID)
 	}
 
-	log.Printf("Job %s: Found %d source files", job.ID, len(sourceFiles))
+	log.Printf("Job %s: Found %d source files with paths", job.ID, len(sourceFiles))
 
-	// Télécharger chaque fichier
-	for _, filename := range sourceFiles {
-		reader, err := p.storageService.DownloadJobSource(ctx, job.ID, filename)
+	// Organiser les fichiers par dossier pour un meilleur logging
+	dirMap := make(map[string][]string)
+	for _, filePath := range sourceFiles {
+		dir := filepath.Dir(filePath)
+		if dir == "." {
+			dir = "root"
+		}
+		dirMap[dir] = append(dirMap[dir], filepath.Base(filePath))
+	}
+
+	// Logger la structure détectée
+	for dir, files := range dirMap {
+		log.Printf("Job %s: Directory '%s' contains %d files: %v", job.ID, dir, len(files), files)
+	}
+
+	// Télécharger chaque fichier en préservant la structure
+	for _, filePath := range sourceFiles {
+		reader, err := p.storageService.DownloadJobSource(ctx, job.ID, filePath)
 		if err != nil {
-			return fmt.Errorf("failed to download source file %s: %w", filename, err)
+			return fmt.Errorf("failed to download source file %s: %w", filePath, err)
 		}
 
-		if err := workspace.WriteFile(filename, reader); err != nil {
-			return fmt.Errorf("failed to write source file %s: %w", filename, err)
+		// WriteFile va automatiquement créer les dossiers parents
+		if err := workspace.WriteFile(filePath, reader); err != nil {
+			return fmt.Errorf("failed to write source file %s to workspace: %w", filePath, err)
 		}
 
-		log.Printf("Job %s: Downloaded source file %s", job.ID, filename)
+		log.Printf("Job %s: Downloaded and placed source file %s", job.ID, filePath)
+	}
+
+	// Vérifier la structure créée dans le workspace
+	if err := p.verifyWorkspaceStructure(workspace, job.ID); err != nil {
+		log.Printf("Job %s: Warning - workspace structure verification failed: %v", job.ID, err)
+		// Ne pas échouer le job pour cela, juste logger un warning
+	}
+
+	return nil
+}
+
+// verifyWorkspaceStructure vérifie que la structure de dossiers a été correctement créée
+func (p *JobProcessor) verifyWorkspaceStructure(workspace *Workspace, jobID uuid.UUID) error {
+	// Lister tous les fichiers dans le workspace
+	allFiles, err := workspace.ListAllFiles(".")
+	if err != nil {
+		return fmt.Errorf("failed to list workspace files: %w", err)
+	}
+
+	log.Printf("Job %s: Workspace structure verification - found %d files:", jobID, len(allFiles))
+
+	// Organiser et logger la structure
+	dirStructure := make(map[string][]string)
+	for _, file := range allFiles {
+		dir := filepath.Dir(file)
+		if dir == "." {
+			dir = "root"
+		}
+		dirStructure[dir] = append(dirStructure[dir], filepath.Base(file))
+	}
+
+	for dir, files := range dirStructure {
+		log.Printf("Job %s: Workspace directory '%s': %v", jobID, dir, files)
 	}
 
 	return nil
@@ -404,8 +454,8 @@ func (p *JobProcessor) downloadSources(ctx context.Context, job *models.Generati
 func (p *JobProcessor) uploadResults(ctx context.Context, job *models.GenerationJob, workspace *Workspace) error {
 	distPath := workspace.GetDistPath()
 
-	// Lister les fichiers générés
-	resultFiles, err := workspace.ListFiles(distPath)
+	// Lister tous les fichiers générés (y compris dans les sous-dossiers)
+	resultFiles, err := workspace.ListAllFiles(distPath)
 	if err != nil {
 		return fmt.Errorf("failed to list result files: %w", err)
 	}
@@ -414,20 +464,36 @@ func (p *JobProcessor) uploadResults(ctx context.Context, job *models.Generation
 		return fmt.Errorf("no result files generated")
 	}
 
-	log.Printf("Job %s: Found %d result files", job.ID, len(resultFiles))
+	log.Printf("Job %s: Found %d result files with structure", job.ID, len(resultFiles))
 
-	// Upload chaque fichier de résultat
-	for _, filename := range resultFiles {
-		reader, err := workspace.ReadFile(fmt.Sprintf("%s/%s", distPath, filename))
+	// Organiser les résultats par dossier pour le logging
+	dirMap := make(map[string][]string)
+	for _, filePath := range resultFiles {
+		dir := filepath.Dir(filePath)
+		if dir == "." {
+			dir = "root"
+		}
+		dirMap[dir] = append(dirMap[dir], filepath.Base(filePath))
+	}
+
+	for dir, files := range dirMap {
+		log.Printf("Job %s: Result directory '%s' contains %d files: %v", job.ID, dir, len(files), files)
+	}
+
+	// Upload chaque fichier de résultat en préservant la structure
+	for _, relativePath := range resultFiles {
+		fullPath := fmt.Sprintf("%s/%s", distPath, relativePath)
+		reader, err := workspace.ReadFile(fullPath)
 		if err != nil {
-			return fmt.Errorf("failed to read result file %s: %w", filename, err)
+			return fmt.Errorf("failed to read result file %s: %w", relativePath, err)
 		}
 
-		if err := p.storageService.UploadResult(ctx, job.CourseID, filename, reader); err != nil {
-			return fmt.Errorf("failed to upload result file %s: %w", filename, err)
+		// UploadResult va maintenant préserver la structure de dossiers
+		if err := p.storageService.UploadResult(ctx, job.CourseID, relativePath, reader); err != nil {
+			return fmt.Errorf("failed to upload result file %s: %w", relativePath, err)
 		}
 
-		log.Printf("Job %s: Uploaded result file %s", job.ID, filename)
+		log.Printf("Job %s: Uploaded result file %s", job.ID, relativePath)
 	}
 
 	return nil

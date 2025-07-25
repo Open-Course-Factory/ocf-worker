@@ -2,6 +2,10 @@
 package validation
 
 import (
+	"fmt"
+	"log"
+	"mime/multipart"
+
 	"github.com/Open-Course-Factory/ocf-worker/pkg/models"
 
 	"github.com/gin-gonic/gin"
@@ -132,11 +136,13 @@ func CombineValidators(validators ...RequestValidator) RequestValidator {
 func ValidateFilenameParam(paramName string) RequestValidator {
 	return func(c *gin.Context, v *APIValidator) *ValidationResult {
 		filename := c.Param(paramName)
-		result := v.ValidateFilenameParam(filename)
+
+		// Valider comme un chemin de fichier complet
+		result := v.ValidateFilePath(filename)
 
 		if result.Valid {
-			// Sanitiser et stocker
-			sanitized := v.SanitizeFilename(filename)
+			// Sanitiser et stocker le chemin complet
+			sanitized := v.SanitizeFilePath(filename)
 			c.Set("validated_filename", sanitized)
 		}
 
@@ -186,10 +192,49 @@ func ValidateFileUpload(c *gin.Context, v *APIValidator) *ValidationResult {
 		}
 	}
 
-	result := v.ValidateFileUpload(files)
+	result := &ValidationResult{Valid: true}
+	var validFiles []*multipart.FileHeader
 
-	if result.Valid {
-		c.Set("validated_files", files)
+	// Valider chaque fichier individuellement
+	for i, fileHeader := range files {
+		// Extraire le chemin complet du fichier
+		filePath := v.ExtractFilePathFromMultipart(fileHeader)
+
+		// Valider la structure du chemin
+		pathResult := v.ValidateFilePath(filePath)
+		if !pathResult.Valid {
+			result.Valid = false
+			for _, err := range pathResult.Errors {
+				err.Field = fmt.Sprintf("files[%d].path", i)
+				result.Errors = append(result.Errors, err)
+			}
+			continue
+		}
+
+		// Sanitiser le chemin
+		sanitizedPath := v.SanitizeFilePath(filePath)
+
+		// Valider le fichier avec le chemin sanitisé
+		fileResult := v.ValidateFileUpload([]*multipart.FileHeader{fileHeader})
+		if !fileResult.Valid {
+			result.Valid = false
+			for _, err := range fileResult.Errors {
+				err.Field = fmt.Sprintf("files[%d].%s", i, err.Field)
+				result.Errors = append(result.Errors, err)
+			}
+			continue
+		}
+
+		// Créer un nouveau header avec le chemin sanitisé
+		newHeader := *fileHeader
+		newHeader.Filename = sanitizedPath
+		validFiles = append(validFiles, &newHeader)
+
+		log.Printf("Validated file: %s -> %s", filePath, sanitizedPath)
+	}
+
+	if result.Valid && len(validFiles) > 0 {
+		c.Set("validated_files", validFiles)
 	}
 
 	return result
@@ -325,4 +370,33 @@ func ValidateThemeInstallRequest(c *gin.Context, v *APIValidator) *ValidationRes
 	}
 
 	return result
+}
+
+// Valide les paramètres de format
+func ValidateFileListFormat(c *gin.Context, v *APIValidator) *ValidationResult {
+	format := c.DefaultQuery("format", "list")
+
+	validFormats := []string{"list", "tree"}
+	isValid := false
+	for _, validFormat := range validFormats {
+		if format == validFormat {
+			isValid = true
+			break
+		}
+	}
+
+	if !isValid {
+		return &ValidationResult{
+			Valid: false,
+			Errors: []*ValidationError{{
+				Field:   "format",
+				Value:   format,
+				Message: "Invalid format. Must be 'list' or 'tree'",
+				Code:    "INVALID_FORMAT",
+			}},
+		}
+	}
+
+	c.Set("validated_format", format)
+	return &ValidationResult{Valid: true}
 }

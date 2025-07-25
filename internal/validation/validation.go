@@ -29,7 +29,7 @@ func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
 		MaxFileSize:       10 * 1024 * 1024, // 10MB par fichier
 		MaxTotalSize:      50 * 1024 * 1024, // 50MB total
-		MaxFiles:          20,               // 20 fichiers max
+		MaxFiles:          30,               // 30 fichiers max
 		MaxFilenameLength: 255,              // 255 caractères max
 		AllowedExtensions: map[string]bool{
 			".md":    true, // Markdown
@@ -49,6 +49,8 @@ func DefaultValidationConfig() *ValidationConfig {
 			".txt":   true, // Texte
 			".yml":   true, // YAML
 			".yaml":  true,
+			".vue":   true,
+			".ts":    true,
 			".html":  true,
 		},
 		AllowedMimeTypes: map[string]bool{
@@ -150,7 +152,7 @@ func (vs *ValidationService) ValidateCourseID(courseID string) *ValidationResult
 }
 
 // ValidateFilename valide un nom de fichier de manière robuste
-func (vs *ValidationService) ValidateFilename(filename string) *ValidationResult {
+func (vs *ValidationService) ValidateFilename(filename string, directory bool) *ValidationResult {
 	result := &ValidationResult{Valid: true}
 
 	if filename == "" {
@@ -211,12 +213,14 @@ func (vs *ValidationService) ValidateFilename(filename string) *ValidationResult
 
 	// Vérifier l'extension
 	ext := strings.ToLower(filepath.Ext(filename))
-	if ext == "" {
-		result.AddError("filename", filename, "filename must have an extension", "NO_EXTENSION")
-	} else if !vs.config.AllowedExtensions[ext] {
-		result.AddError("filename", filename,
-			fmt.Sprintf("file extension %s not allowed", ext),
-			"FORBIDDEN_EXTENSION")
+	if !directory {
+		if ext == "" {
+			result.AddError("filename", filename, "filename must have an extension", "NO_EXTENSION")
+		} else if !vs.config.AllowedExtensions[ext] {
+			result.AddError("filename", filename,
+				fmt.Sprintf("file extension %s not allowed", ext),
+				"FORBIDDEN_EXTENSION")
+		}
 	}
 
 	return result
@@ -227,7 +231,7 @@ func (vs *ValidationService) ValidateFileHeader(header *multipart.FileHeader) *V
 	result := &ValidationResult{Valid: true}
 
 	// Valider le nom de fichier
-	filenameResult := vs.ValidateFilename(header.Filename)
+	filenameResult := vs.ValidateFilename(header.Filename, false)
 	if !filenameResult.Valid {
 		result.Valid = false
 		result.Errors = append(result.Errors, filenameResult.Errors...)

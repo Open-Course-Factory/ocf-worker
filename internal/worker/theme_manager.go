@@ -52,6 +52,10 @@ func (tm *ThemeManager) DetectMissingThemes(ctx context.Context, workspace *Work
 			// Extraire les thèmes du frontmatter
 			themes := tm.extractThemesFromContent(content)
 
+			if len(themes) == 0 {
+				themes = append(themes, "@slidev/theme-default")
+			}
+
 			for _, theme := range themes {
 				if !tm.isThemeInstalled(workspace, theme) {
 					missingThemes = append(missingThemes, theme)

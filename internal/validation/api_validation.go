@@ -125,7 +125,7 @@ func (av *APIValidator) ValidateCourseIDParam(courseIDStr string) (uuid.UUID, *V
 
 // ValidateFilenameParam valide un paramètre filename depuis l'URL
 func (av *APIValidator) ValidateFilenameParam(filename string) *ValidationResult {
-	return av.validationService.ValidateFilename(filename)
+	return av.validationService.ValidateFilename(filename, false)
 }
 
 // ValidateListParams valide les paramètres de listage (status, limit, offset)
@@ -272,12 +272,14 @@ func (av *APIValidator) ValidateContentSafety(content []byte, filename string) *
 	}
 
 	// Vérifier qu'il n'y a pas de caractères de contrôle dangereux
-	for i, b := range content {
-		if b < 32 && b != 9 && b != 10 && b != 13 { // Permettre tab, LF, CR
-			result.AddError("content", filename,
-				fmt.Sprintf("content contains control character at position %d", i),
-				"CONTROL_CHARACTERS")
-			break // Ne signaler qu'une fois
+	if ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
+		for i, b := range content {
+			if b < 32 && b != 9 && b != 10 && b != 13 { // Permettre tab, LF, CR
+				result.AddError("content", filename,
+					fmt.Sprintf("content contains control character at position %d", i),
+					"CONTROL_CHARACTERS")
+				break // Ne signaler qu'une fois
+			}
 		}
 	}
 
@@ -516,4 +518,120 @@ func (av *APIValidator) ValidateThemeName(themeName string) *ValidationResult {
 	}
 
 	return result
+}
+
+// SanitizeFilePath nettoie un chemin de fichier en préservant la structure de dossiers
+func (av *APIValidator) SanitizeFilePath(filePath string) string {
+	if filePath == "" {
+		return "unnamed_file"
+	}
+
+	// Normaliser les séparateurs de chemin
+	filePath = filepath.ToSlash(filePath)
+
+	// Supprimer les chemins absolus et path traversal
+	filePath = strings.TrimPrefix(filePath, "/")
+
+	// Diviser en segments de chemin
+	segments := strings.Split(filePath, "/")
+	var cleanSegments []string
+
+	for _, segment := range segments {
+		// Ignorer les segments vides et les path traversal
+		if segment == "" || segment == "." || segment == ".." {
+			continue
+		}
+
+		// Nettoyer chaque segment individuellement
+		cleanSegment := av.sanitizeSegment(segment)
+		if cleanSegment != "" {
+			cleanSegments = append(cleanSegments, cleanSegment)
+		}
+	}
+
+	if len(cleanSegments) == 0 {
+		return "unnamed_file"
+	}
+
+	// Reconstruire le chemin
+	cleanPath := strings.Join(cleanSegments, "/")
+
+	// Limiter la profondeur des dossiers
+	const maxDepth = 10
+	if len(cleanSegments) > maxDepth {
+		cleanSegments = cleanSegments[len(cleanSegments)-maxDepth:]
+		cleanPath = strings.Join(cleanSegments, "/")
+	}
+
+	return cleanPath
+}
+
+// sanitizeSegment nettoie un segment de chemin individuel
+func (av *APIValidator) sanitizeSegment(segment string) string {
+	// Utiliser la logique existante de SanitizeFilename pour chaque segment
+	return av.SanitizeFilename(segment)
+}
+
+// ValidateFilePath valide un chemin de fichier complet
+func (av *APIValidator) ValidateFilePath(filePath string) *ValidationResult {
+	result := &ValidationResult{Valid: true}
+
+	if filePath == "" {
+		result.AddError("file_path", "", "file path is required", "REQUIRED")
+		return result
+	}
+
+	// Vérifier la longueur totale
+	if len(filePath) > 1000 {
+		result.AddError("file_path", filePath, "file path too long (max 1000 characters)", "PATH_TOO_LONG")
+	}
+
+	// Normaliser et diviser le chemin
+	normalizedPath := filepath.ToSlash(filePath)
+	segments := strings.Split(strings.TrimPrefix(normalizedPath, "/"), "/")
+
+	// Vérifier chaque segment
+	directory := true
+	for i, segment := range segments {
+		if segment == "" && i != len(segments)-1 {
+			continue // Permettre les segments vides sauf le dernier
+		}
+
+		if i == len(segments)-1 {
+			directory = false
+		}
+
+		// Valider chaque segment comme un nom de fichier/dossier
+		segmentResult := av.validationService.ValidateFilename(segment, directory)
+		if !segmentResult.Valid {
+			result.Valid = false
+			for _, err := range segmentResult.Errors {
+				err.Field = fmt.Sprintf("file_path[%d]", i)
+				result.Errors = append(result.Errors, err)
+			}
+		}
+	}
+
+	// Vérifier la profondeur
+	if len(segments) > 10 {
+		result.AddError("file_path", filePath, "path too deep (max 10 levels)", "PATH_TOO_DEEP")
+	}
+
+	return result
+}
+
+// ExtractFilePathFromMultipart extrait le chemin complet depuis un header multipart
+func (av *APIValidator) ExtractFilePathFromMultipart(fileHeader *multipart.FileHeader) string {
+	filename := fileHeader.Filename
+
+	// Vérifier les headers customisés pour le chemin
+	if contentDisp := fileHeader.Header.Get("Content-Disposition"); contentDisp != "" {
+		// Chercher un paramètre 'filename' customisé
+		if matches := regexp.MustCompile(`filename="([^"]+)"`).FindStringSubmatch(contentDisp); len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	// Fallback sur le filename standard
+	return filename
 }

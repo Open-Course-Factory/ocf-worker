@@ -31,15 +31,25 @@ func (s *StorageService) UploadJobSources(ctx context.Context, jobID uuid.UUID, 
 		}
 		defer file.Close()
 
-		// Construire le chemin: sources/{job_id}/{filename}
-		path := fmt.Sprintf("sources/%s/%s", jobID.String(), fileHeader.Filename)
+		// Extraire le chemin complet du fichier (peut inclure des dossiers)
+		filePath := fileHeader.Filename
 
-		if err := s.storage.Upload(ctx, path, file); err != nil {
-			return fmt.Errorf("failed to upload file %s: %w", fileHeader.Filename, err)
+		// Construire le chemin complet: sources/{job_id}/{filepath}
+		// Note: filePath peut maintenant contenir des dossiers comme "assets/images/logo.png"
+		storagePath := fmt.Sprintf("sources/%s/%s", jobID.String(), filePath)
+
+		if err := s.storage.Upload(ctx, storagePath, file); err != nil {
+			return fmt.Errorf("failed to upload file %s: %w", filePath, err)
 		}
 	}
 
 	return nil
+}
+
+// UploadJobSourceWithPath upload un fichier source avec un chemin explicite
+func (s *StorageService) UploadJobSourceWithPath(ctx context.Context, jobID uuid.UUID, filePath string, content io.Reader) error {
+	storagePath := fmt.Sprintf("sources/%s/%s", jobID.String(), filePath)
+	return s.storage.Upload(ctx, storagePath, content)
 }
 
 // UploadJobSource upload un fichier source unique
@@ -54,7 +64,7 @@ func (s *StorageService) DownloadJobSource(ctx context.Context, jobID uuid.UUID,
 	return s.storage.Download(ctx, path)
 }
 
-// ListJobSources liste les fichiers source d'un job
+// ListJobSources liste les fichiers source d'un job avec leurs chemins complets
 func (s *StorageService) ListJobSources(ctx context.Context, jobID uuid.UUID) ([]string, error) {
 	prefix := fmt.Sprintf("sources/%s/", jobID.String())
 	files, err := s.storage.List(ctx, prefix)
@@ -62,18 +72,39 @@ func (s *StorageService) ListJobSources(ctx context.Context, jobID uuid.UUID) ([
 		return nil, err
 	}
 
-	// Retourner seulement les noms de fichiers (sans le préfixe)
-	var filenames []string
+	// Retourner les chemins relatifs (en préservant la structure de dossiers)
+	var filePaths []string
 	for _, file := range files {
-		if strings.HasPrefix(file, prefix) {
-			filename := strings.TrimPrefix(file, prefix)
-			if filename != "" {
-				filenames = append(filenames, filename)
+		if after, ok := strings.CutPrefix(file, prefix); ok {
+			relativePath := after
+			if relativePath != "" {
+				filePaths = append(filePaths, relativePath)
 			}
 		}
 	}
 
-	return filenames, nil
+	return filePaths, nil
+}
+
+// GetJobSourceTree retourne l'arbre des fichiers sources organisé par dossiers
+func (s *StorageService) GetJobSourceTree(ctx context.Context, jobID uuid.UUID) (map[string][]string, error) {
+	files, err := s.ListJobSources(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	tree := make(map[string][]string)
+
+	for _, file := range files {
+		dir := filepath.Dir(file)
+		if dir == "." {
+			dir = "root"
+		}
+
+		tree[dir] = append(tree[dir], filepath.Base(file))
+	}
+
+	return tree, nil
 }
 
 // UploadResult upload le résultat généré pour un cours
@@ -158,32 +189,47 @@ func (s *StorageService) CleanupJob(ctx context.Context, jobID uuid.UUID) error 
 }
 
 // ValidateFile valide un fichier uploadé
-func (s *StorageService) ValidateFile(filename string) error {
-	// Vérifier l'extension
-	ext := strings.ToLower(filepath.Ext(filename))
-	allowedExts := map[string]bool{
-		".md":    true,
-		".css":   true,
-		".js":    true,
-		".json":  true,
-		".png":   true,
-		".jpg":   true,
-		".jpeg":  true,
-		".gif":   true,
-		".svg":   true,
-		".woff":  true,
-		".woff2": true,
-		".ttf":   true,
-		".eot":   true,
+func (s *StorageService) ValidateFile(filePath string) error {
+	// Normaliser le chemin
+	normalizedPath := filepath.ToSlash(filePath)
+
+	// Vérifier les path traversal
+	if strings.Contains(normalizedPath, "..") {
+		return fmt.Errorf("path traversal not allowed: %s", filePath)
 	}
 
-	if !allowedExts[ext] {
-		return fmt.Errorf("file type not allowed: %s", ext)
+	// Vérifier la profondeur
+	segments := strings.Split(strings.Trim(normalizedPath, "/"), "/")
+	if len(segments) > 10 {
+		return fmt.Errorf("path too deep (max 10 levels): %s", filePath)
 	}
 
-	// Vérifier le nom de fichier
-	if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
-		return fmt.Errorf("invalid filename: %s", filename)
+	// Valider chaque segment
+	for _, segment := range segments {
+		if segment == "" {
+			continue
+		}
+
+		// Vérifier l'extension du fichier final
+		if strings.Contains(segment, ".") {
+			ext := strings.ToLower(filepath.Ext(segment))
+			allowedExts := map[string]bool{
+				".md": true, ".css": true, ".js": true, ".json": true,
+				".png": true, ".jpg": true, ".jpeg": true, ".gif": true,
+				".svg": true, ".woff": true, ".woff2": true, ".ttf": true,
+				".eot": true, ".ico": true, ".txt": true, ".yml": true,
+				".yaml": true, ".html": true, ".vue": true, ".ts": true,
+			}
+
+			if ext != "" && !allowedExts[ext] {
+				return fmt.Errorf("file extension not allowed: %s", ext)
+			}
+		}
+
+		// Vérifier les caractères interdits dans les noms de dossiers/fichiers
+		if strings.ContainsAny(segment, ":*?\"<>|") {
+			return fmt.Errorf("invalid characters in path segment: %s", segment)
+		}
 	}
 
 	return nil

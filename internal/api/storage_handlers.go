@@ -2,9 +2,11 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/Open-Course-Factory/ocf-worker/internal/storage"
 	"github.com/Open-Course-Factory/ocf-worker/internal/validation"
@@ -50,55 +52,91 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 	files := c.MustGet("validated_files").([]*multipart.FileHeader)
 
-	// Se concentrer sur la logique métier : sanitisation et sécurité
-	validator := validation.GetValidator(c) // Toujours nécessaire pour la sanitisation
+	// Récupérer le validator pour le traitement des chemins
+	validator := validation.GetValidator(c)
+	if validator == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
+		return
+	}
+
 	var processedFiles []*multipart.FileHeader
+	var uploadErrors []string
 
 	for _, fileHeader := range files {
-		// Sanitiser le nom de fichier
-		sanitizedName := validator.SanitizeFilename(fileHeader.Filename)
-		if sanitizedName != fileHeader.Filename {
-			// Créer une nouvelle structure avec le nom sanitisé
-			newHeader := *fileHeader
-			newHeader.Filename = sanitizedName
-			processedFiles = append(processedFiles, &newHeader)
-		} else {
-			processedFiles = append(processedFiles, fileHeader)
+		// Extraire le chemin complet du fichier (peut inclure des dossiers)
+		originalPath := validator.ExtractFilePathFromMultipart(fileHeader)
+
+		// Sanitiser le chemin complet (préserve la structure de dossiers)
+		sanitizedPath := validator.SanitizeFilePath(originalPath)
+
+		// Valider le chemin complet
+		pathValidation := validator.ValidateFilePath(sanitizedPath)
+		if !pathValidation.Valid {
+			for _, err := range pathValidation.Errors {
+				uploadErrors = append(uploadErrors, fmt.Sprintf("File %s: %s", originalPath, err.Message))
+			}
+			continue
 		}
 
-		// Validation du contenu de sécurité
+		// Validation supplémentaire du contenu
 		file, err := fileHeader.Open()
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to open file: " + fileHeader.Filename})
-			return
+			uploadErrors = append(uploadErrors, fmt.Sprintf("Failed to open file %s: %v", originalPath, err))
+			continue
 		}
 
-		// Lire le contenu pour la validation (attention à la mémoire)
+		// Lire le contenu pour la validation (limiter la lecture pour la performance)
 		content := make([]byte, min(fileHeader.Size, 1024*1024)) // Max 1MB pour validation
 		n, _ := file.Read(content)
 		file.Close()
 
-		contentValidation := validator.ValidateContentSafety(content[:n], sanitizedName)
+		contentValidation := validator.ValidateContentSafety(content[:n], sanitizedPath)
 		if !contentValidation.Valid {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "Content validation failed for file: " + fileHeader.Filename,
-				"validation_errors": contentValidation.Errors,
-			})
-			return
+			for _, err := range contentValidation.Errors {
+				uploadErrors = append(uploadErrors, fmt.Sprintf("File %s: %s", originalPath, err.Message))
+			}
+			continue
 		}
+
+		// Créer un nouveau header avec le chemin sanitisé
+		newHeader := *fileHeader
+		newHeader.Filename = sanitizedPath
+		processedFiles = append(processedFiles, &newHeader)
+
+		log.Printf("Processed file: %s -> %s", originalPath, sanitizedPath)
 	}
 
-	// Upload les fichiers
+	// Vérifier s'il y a des erreurs de validation
+	if len(uploadErrors) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "File validation failed",
+			"validation_errors": uploadErrors,
+			"processed_count":   len(processedFiles),
+			"total_count":       len(files),
+		})
+		return
+	}
+
+	// Upload les fichiers avec leurs chemins préservés
 	if err := h.storageService.UploadJobSources(c.Request.Context(), jobID, processedFiles); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "files uploaded successfully",
+		"message": "files uploaded successfully with directory structure preserved",
 		"job_id":  jobID,
 		"count":   len(processedFiles),
+		"files":   extractFilePaths(processedFiles),
 	})
+}
+
+func extractFilePaths(files []*multipart.FileHeader) []string {
+	var paths []string
+	for _, file := range files {
+		paths = append(paths, file.Filename)
+	}
+	return paths
 }
 
 // ListJobSources liste les fichiers sources d'un job
@@ -114,32 +152,41 @@ func (h *StorageHandlers) UploadJobSources(c *gin.Context) {
 // @Failure 500 {object} models.ErrorResponse "Erreur de stockage"
 // @Router /storage/jobs/{job_id}/sources [get]
 func (h *StorageHandlers) ListJobSources(c *gin.Context) {
-	validator := GetValidator(c)
-	if validator == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Validation service unavailable"})
-		return
-	}
-	jobIDStr := c.Param("job_id")
+	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 
-	jobID, validationResult := validator.ValidateJobIDParam(jobIDStr)
-	if !validationResult.Valid {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "Invalid job ID",
-			"validation_errors": validationResult.Errors,
+	// Paramètre optionnel pour le format de réponse
+	format := c.DefaultQuery("format", "list") // "list" ou "tree"
+
+	switch format {
+	case "tree":
+		// Retourner un arbre organisé par dossiers
+		tree, err := h.storageService.GetJobSourceTree(c.Request.Context(), jobID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"job_id": jobID,
+			"format": "tree",
+			"tree":   tree,
 		})
-		return
-	}
 
-	files, err := h.storageService.ListJobSources(c.Request.Context(), jobID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	default:
+		// Retourner une liste plate avec les chemins complets
+		files, err := h.storageService.ListJobSources(c.Request.Context(), jobID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
-	c.JSON(http.StatusOK, gin.H{
-		"job_id": jobID,
-		"files":  files,
-	})
+		c.JSON(http.StatusOK, gin.H{
+			"job_id": jobID,
+			"format": "list",
+			"files":  files,
+			"count":  len(files),
+		})
+	}
 }
 
 // DownloadJobSource télécharge un fichier source spécifique
@@ -165,34 +212,59 @@ func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 	filename := c.MustGet("validated_filename").(string)
 
+	// Le filename peut maintenant être un chemin comme "assets/images/logo.png"
 	reader, err := h.storageService.DownloadJobSource(c.Request.Context(), jobID, filename)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
 
-	// Déterminer le content type
-	contentType := "application/octet-stream"
-	ext := filepath.Ext(filename)
-	switch ext {
-	case ".md":
-		contentType = "text/markdown"
-	case ".css":
-		contentType = "text/css"
-	case ".js":
-		contentType = "application/javascript"
-	case ".json":
-		contentType = "application/json"
-	case ".png":
-		contentType = "image/png"
-	case ".jpg", ".jpeg":
-		contentType = "image/jpeg"
-	}
+	// Déterminer le content type basé sur l'extension
+	contentType := determineContentType(filename)
+
+	// Utiliser seulement le nom de fichier pour Content-Disposition, pas le chemin complet
+	displayName := filepath.Base(filename)
 
 	c.Header("Content-Type", contentType)
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", displayName))
+	c.Header("X-File-Path", filename) // Header customisé pour indiquer le chemin complet
 
 	c.DataFromReader(http.StatusOK, -1, contentType, reader, nil)
+}
+
+// Helper pour déterminer le type de contenu
+func determineContentType(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	contentTypes := map[string]string{
+		".md":   "text/markdown",
+		".css":  "text/css",
+		".js":   "application/javascript",
+		".ts":   "application/javascript",
+		".vue":  "application/javascript",
+		".json": "application/json",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".gif":  "image/gif",
+		".svg":  "image/svg+xml",
+		".html": "text/html",
+		".txt":  "text/plain",
+		".yml":  "text/yaml",
+		".yaml": "text/yaml",
+	}
+
+	if contentType, exists := contentTypes[ext]; exists {
+		return contentType
+	}
+	return "application/octet-stream"
+}
+
+// Helper function pour min (si pas déjà définie)
+func min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // DownloadResult télécharge un fichier de résultat

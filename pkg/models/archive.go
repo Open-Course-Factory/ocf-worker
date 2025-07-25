@@ -11,15 +11,6 @@ type ArchiveResponse struct {
 	DownloadURL string      `json:"download_url" example:"/api/v1/storage/courses/550e8400-e29b-41d4-a716-446655440002/results/archive-20250117-103000.zip"`
 } // @name ArchiveResponse
 
-// ArchiveRequest contient les paramètres de création d'archive
-// @Description Requête de la création d'une archive de résultats
-type ArchiveRequest struct {
-	Format   ArchiveFormat `json:"format" binding:"required"`
-	Include  []string      `json:"include,omitempty"` // Patterns de fichiers à inclure
-	Exclude  []string      `json:"exclude,omitempty"` // Patterns de fichiers à exclure
-	Compress bool          `json:"compress"`          // Compression activée
-} // @name ArchiveRequest
-
 // ArchiveFormat définit les formats d'archive supportés
 type ArchiveFormat string
 

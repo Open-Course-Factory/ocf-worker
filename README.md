@@ -1,5 +1,9 @@
 # OCF Worker
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Open-Course-Factory/ocf-worker-sdk)](https://goreportcard.com/report/github.com/Open-Course-Factory/ocf-worker)
+[![License](https://img.shields.io/badge/license-AGPLv3-green.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.23+-blue.svg)](https://golang.org)
+
 **OCF Worker** est un microservice Go pour la génération asynchrone de cours dans le cadre du projet **Open Course Factory (OCF)**. Il traite des jobs de génération de manière asynchrone avec une API REST et un système de storage abstrait supportant filesystem et Garage S3.
 
 ## 🚀 Fonctionnalités

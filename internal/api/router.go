@@ -151,9 +151,6 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 			),
 			archiveHandlers.DownloadResultsArchive)
 
-		storage.POST("/courses/:course_id/archive",
-			validation.ValidateRequest(validation.ValidateCourseIDParam("course_id")),
-			archiveHandlers.CreateResultsArchive)
 	}
 
 	// Configuration Swagger
