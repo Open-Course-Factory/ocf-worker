@@ -29,7 +29,6 @@ func setupTestRouter(t *testing.T) *gin.Engine {
 	// Créer un mock worker pool pour les tests
 	mockWorkerPool := createMockWorkerPool(jobService, storageService)
 
-	// 👈 Utiliser SetupRouterWithWorker au lieu de SetupRouter
 	return SetupRouter(jobService, storageService, mockWorkerPool)
 }
 
@@ -135,7 +134,7 @@ func TestHealthEndpoint(t *testing.T) {
 	router := setupTestRouter(t)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)

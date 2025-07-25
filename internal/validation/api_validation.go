@@ -183,13 +183,9 @@ func (av *APIValidator) SanitizeFilename(filename string) string {
 	dangerous := regexp.MustCompile(`[\/\\:*?"<>|]+`)
 	base = dangerous.ReplaceAllString(base, "_")
 
-	// 3. Supprimer les points isolés en début/milieu (mais pas l'extension)
-	// Remplacer les points isolés ou multiples par underscore, sauf s'ils sont suivis d'une extension valide
-	base = regexp.MustCompile(`^\.+|\.+`).ReplaceAllString(base, "_")
-
 	base = regexp.MustCompile(`_+`).ReplaceAllString(base, "_")
 
-	// 4. Supprimer les underscores en début et fin
+	// 3. Supprimer les underscores en début et fin
 	base = strings.Trim(base, "_")
 
 	// traitements sur l'extension

@@ -200,6 +200,7 @@ func (h *StorageHandlers) ListJobSources(c *gin.Context) {
 // @Produce application/javascript
 // @Param job_id path string true "ID du job" Format(uuid)
 // @Param filename path string true "Nom du fichier à télécharger"
+// @Param filepath query string false "Chemin spécifique du fichier (optionnel)"
 // @Success 200 {file} file "Contenu du fichier"
 // @Header 200 {string} Content-Type "Type MIME du fichier"
 // @Header 200 {string} Content-Disposition "attachment; filename=..."
@@ -212,22 +213,35 @@ func (h *StorageHandlers) DownloadJobSource(c *gin.Context) {
 	jobID := c.MustGet("validated_job_id").(uuid.UUID)
 	filename := c.MustGet("validated_filename").(string)
 
+	// Récupérer le paramètre de requête filepath (optionnel)
+	filePath := c.Query("filepath")
+
+	// Déterminer le chemin final à utiliser
+	var finalPath string
+	if filePath != "" {
+		// Utiliser le filepath fourni en paramètre de requête
+		finalPath = filePath + filename
+	} else {
+		// Utiliser le filename du paramètre de chemin
+		finalPath = filename
+	}
+
 	// Le filename peut maintenant être un chemin comme "assets/images/logo.png"
-	reader, err := h.storageService.DownloadJobSource(c.Request.Context(), jobID, filename)
+	reader, err := h.storageService.DownloadJobSource(c.Request.Context(), jobID, finalPath)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
 
 	// Déterminer le content type basé sur l'extension
-	contentType := determineContentType(filename)
+	contentType := determineContentType(finalPath)
 
 	// Utiliser seulement le nom de fichier pour Content-Disposition, pas le chemin complet
-	displayName := filepath.Base(filename)
+	displayName := filepath.Base(finalPath)
 
 	c.Header("Content-Type", contentType)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", displayName))
-	c.Header("X-File-Path", filename) // Header customisé pour indiquer le chemin complet
+	c.Header("X-File-Path", finalPath) // Header customisé pour indiquer le chemin complet
 
 	c.DataFromReader(http.StatusOK, -1, contentType, reader, nil)
 }

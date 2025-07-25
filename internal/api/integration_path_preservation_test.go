@@ -110,18 +110,19 @@ func TestFileUploadWithDirectoryStructure(t *testing.T) {
 
 	t.Run("Download file with path", func(t *testing.T) {
 		// Download a file from a subdirectory
-		filePath := "assets/css/theme.css"
+		filePath := "assets/css/"
+		fileName := "theme.css"
 		req := httptest.NewRequest(http.MethodGet,
-			"/api/v1/storage/jobs/"+jobID.String()+"/sources/"+filePath, nil)
+			"/api/v1/storage/jobs/"+jobID.String()+"/sources/"+fileName+"?filepath="+filePath, nil)
 
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "text/css", w.Header().Get("Content-Type"))
-		assert.Equal(t, filePath, w.Header().Get("X-File-Path"))
+		assert.Equal(t, filePath+fileName, w.Header().Get("X-File-Path"))
 		assert.Contains(t, w.Header().Get("Content-Disposition"), "theme.css")
-		assert.Equal(t, testFiles[filePath], w.Body.String())
+		assert.Equal(t, testFiles[filePath+fileName], w.Body.String())
 	})
 
 	t.Run("Workspace preserves directory structure", func(t *testing.T) {
