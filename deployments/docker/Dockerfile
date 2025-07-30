@@ -14,6 +14,14 @@ RUN go mod download
 # Copier le code source
 COPY . .
 
+# Install Go Library & Swagger
+RUN go get golang.org/x/text/transform \
+    && go get golang.org/x/text/unicode/norm \
+    && go install github.com/swaggo/swag/cmd/swag@v1.8.12
+
+# Init Swagger
+RUN swag init -g ./cmd/generator/main.go --parseDependency --parseInternal
+
 # Build l'application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ocf-worker cmd/generator/main.go
 
