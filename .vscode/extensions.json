@@ -1,0 +1,14 @@
+{
+	"recommendations": [
+		"golang.Go",
+		"ms-azuretools.vscode-containers",
+		"ms-azuretools.vscode-docker",
+		"gitlab.gitlab-workflow",
+		"exiasr.hadolint",
+		"davidanson.vscode-markdownlint",
+		"redhat.vscode-yaml"
+	],
+	"unwantedRecommendations": [
+		
+	]
+}

@@ -34,7 +34,7 @@
 	"postCreateCommand": "echo \"\nsource /usr/share/bash-completion/completions/git\" >> ~/.bashrc",
 
 	"mounts": [
-	  "type=bind,source=${localEnv:HOME}/.ssh,target=/home/appuser/.ssh,readonly",
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/appuser/.ssh,readonly",
 		"type=bind,source=.bash_history,target=/home/appuser/.bash_history,consistency=cached"
 	],
 	
@@ -54,7 +54,12 @@
 			// is created.
 			"extensions": [
 				"golang.Go",
-				"ms-azuretools.vscode-containers"
+				"ms-azuretools.vscode-containers",
+				"ms-azuretools.vscode-docker",
+				"gitlab.gitlab-workflow",
+				"exiasr.hadolint",
+				"davidanson.vscode-markdownlint",
+				"redhat.vscode-yaml"
 			]
 		}
 	},
@@ -62,7 +67,14 @@
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/git:1": {},
-		"ghcr.io/devcontainers/features/sshd:1": {}	},
+		"ghcr.io/devcontainers/features/sshd:1": {},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"version": "latest",
+			"enableNonRootDocker": "true",
+			"moby": "true"
+		},
+		"ghcr.io/dhoeric/features/hadolint:1": {}
+	},
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "ocf"
