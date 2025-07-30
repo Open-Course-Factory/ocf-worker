@@ -6,11 +6,6 @@ include:
       job_suffix: " deployments/docker/Dockerfile"
   - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
     inputs:
-      path: deployments/docker/Dockerfile.dev
-      stage: linting
-      job_suffix: " deployments/docker/Dockerfile.dev"
-  - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
-    inputs:
       path: .devcontainer/Dockerfile
       stage: linting
       job_suffix: " .devcontainer/Dockerfile"

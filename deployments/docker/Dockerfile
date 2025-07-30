@@ -20,10 +20,9 @@ RUN go get golang.org/x/text/transform \
     && go install github.com/swaggo/swag/cmd/swag@v1.8.12
 
 # Init Swagger
-RUN swag init -g ./cmd/generator/main.go --parseDependency --parseInternal
-
+RUN swag init -g ./cmd/generator/main.go --parseDependency --parseInternal \
 # Build l'application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ocf-worker cmd/generator/main.go
+    && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ocf-worker cmd/generator/main.go
 
 # Runtime stage avec Node.js pour Slidev
 FROM node:24-bookworm-slim
@@ -36,6 +35,7 @@ RUN apt update && apt install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer Slidev et Playwright avec dépendances
+# hadolint ignore=DL3016
 RUN npm install -g @slidev/cli@latest playwright-chromium \
     && npx playwright install-deps chromium \
     && npm cache clean --force \
@@ -47,10 +47,9 @@ RUN mkdir -p /app/storage /app/logs /app/workspaces \
     && chmod -R 755 /app/storage /app/logs /app/workspaces
 
 COPY --from=builder /app/ocf-worker /usr/local/bin/ocf-worker
-RUN chmod +x /usr/local/bin/ocf-worker
-
+RUN chmod +x /usr/local/bin/ocf-worker \
 # S'assurer que node peut écrire dans les répertoires après la copie
-RUN chown -R node:node /app/storage /app/logs /app/workspaces
+    && chown -R node:node /app/storage /app/logs /app/workspaces
 
 USER node
 
