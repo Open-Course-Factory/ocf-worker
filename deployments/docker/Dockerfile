@@ -27,6 +27,20 @@ RUN swag init -g ./cmd/generator/main.go --parseDependency --parseInternal \
 # Runtime stage avec Node.js pour Slidev
 FROM node:24-bookworm-slim
 
+ARG VERSION=0.1.0
+
+LABEL org.opencontainers.image.authors='Solution Libre <contact@solution-libre.fr>' \
+      org.opencontainers.image.base.name='node:24-bookworm-slim' \
+      org.opencontainers.image.description='Open Course Factory Worker' \
+      org.opencontainers.image.documentation='https://usine.solution-libre.fr/open-course-factory/ocf-worker/-/blob/main/README.md' \
+      org.opencontainers.image.licenses='GPL-3.0-or-later' \
+      org.opencontainers.image.ref.name='ocf-worker' \
+      org.opencontainers.image.source='https://usine.solution-libre.fr/open-course-factory/ocf-worker/-/tree/main/' \
+      org.opencontainers.image.title='OFC Worker' \
+      org.opencontainers.image.url='https://usine.solution-libre.fr/open-course-factory/ocf-worker/' \
+      org.opencontainers.image.vendor='Solution Libre' \
+      org.opencontainers.image.version="${VERSION}"
+
 # Installer les dépendances système
 RUN apt update && apt install -y \
     curl \
