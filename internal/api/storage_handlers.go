@@ -34,6 +34,7 @@ func NewStorageHandlers(storageService *storage.StorageService) *StorageHandlers
 // @Description - `.md` - Fichiers Markdown (slides)
 // @Description - `.css` - Feuilles de style
 // @Description - `.js` - Scripts JavaScript
+// @Description - `.vue` - Fichiers Vue.js
 // @Description - `.json` - Fichiers de configuration
 // @Description - `.png`, `.jpg`, `.gif`, `.svg` - Images
 // @Description - `.woff`, `.woff2`, `.ttf` - Polices
