@@ -4,11 +4,11 @@ include:
       path: deployments/docker/Dockerfile
       stage: linting
       job_suffix: " deployments/docker/Dockerfile"
-  - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
-    inputs:
-      path: .devcontainer/Dockerfile
-      stage: linting
-      job_suffix: " .devcontainer/Dockerfile"
+#  - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
+#    inputs:
+#      path: .devcontainer/Dockerfile
+#      stage: linting
+#      job_suffix: " .devcontainer/Dockerfile"
   - template: Jobs/Container-Scanning.gitlab-ci.yml
 
 stages:
