@@ -53,6 +53,7 @@ RUN apt update && apt install -y \
 # hadolint ignore=DL3016
 RUN npm install -g @slidev/cli@latest 
 
+# hadolint ignore=DL3059,DL3016
 RUN npm install -g playwright-chromium
 
 RUN npx playwright install-deps chromium \
