@@ -14,11 +14,32 @@ RUN go mod download
 # Copier le code source
 COPY . .
 
+# Install Go Library & Swagger
+RUN go get golang.org/x/text/transform \
+    && go get golang.org/x/text/unicode/norm \
+    && go install github.com/swaggo/swag/cmd/swag@v1.8.12
+
+# Init Swagger
+RUN swag init -g ./cmd/generator/main.go --parseDependency --parseInternal \
 # Build l'application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ocf-worker cmd/generator/main.go
+    && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ocf-worker cmd/generator/main.go
 
 # Runtime stage avec Node.js pour Slidev
 FROM node:24-bookworm-slim
+
+ARG VERSION=0.1.0
+
+LABEL org.opencontainers.image.authors='Solution Libre <contact@solution-libre.fr>' \
+      org.opencontainers.image.base.name='node:24-bookworm-slim' \
+      org.opencontainers.image.description='Open Course Factory Worker' \
+      org.opencontainers.image.documentation='https://usine.solution-libre.fr/open-course-factory/ocf-worker/-/blob/main/README.md' \
+      org.opencontainers.image.licenses='GPL-3.0-or-later' \
+      org.opencontainers.image.ref.name='ocf-worker' \
+      org.opencontainers.image.source='https://usine.solution-libre.fr/open-course-factory/ocf-worker/-/tree/main/' \
+      org.opencontainers.image.title='OFC Worker' \
+      org.opencontainers.image.url='https://usine.solution-libre.fr/open-course-factory/ocf-worker/' \
+      org.opencontainers.image.vendor='Solution Libre' \
+      org.opencontainers.image.version="${VERSION}"
 
 # Installer les dépendances système
 RUN apt update && apt install -y \
@@ -28,8 +49,14 @@ RUN apt update && apt install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer Slidev et Playwright avec dépendances
-RUN npm install -g @slidev/cli@latest playwright-chromium \
-    && npx playwright install-deps chromium \
+
+# hadolint ignore=DL3016
+RUN npm install -g @slidev/cli@latest 
+
+# hadolint ignore=DL3059,DL3016
+RUN npm install -g playwright-chromium
+
+RUN npx playwright install-deps chromium \
     && npm cache clean --force \
     && npx @slidev/cli --version
 
@@ -39,10 +66,9 @@ RUN mkdir -p /app/storage /app/logs /app/workspaces \
     && chmod -R 755 /app/storage /app/logs /app/workspaces
 
 COPY --from=builder /app/ocf-worker /usr/local/bin/ocf-worker
-RUN chmod +x /usr/local/bin/ocf-worker
-
+RUN chmod +x /usr/local/bin/ocf-worker \
 # S'assurer que node peut écrire dans les répertoires après la copie
-RUN chown -R node:node /app/storage /app/logs /app/workspaces
+    && chown -R node:node /app/storage /app/logs /app/workspaces
 
 USER node
 
@@ -50,7 +76,7 @@ WORKDIR /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8081/health || exit 1
+    CMD curl -f http://localhost:8081/api/v1/health || exit 1
 
 EXPOSE 8081
 

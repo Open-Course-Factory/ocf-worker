@@ -1,0 +1,57 @@
+include:
+  - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
+    inputs:
+      path: deployments/docker/Dockerfile
+      stage: linting
+      job_suffix: " deployments/docker/Dockerfile"
+  - component: $CI_SERVER_FQDN/gitlab/components/lint/dockerfile@0.5.0
+    inputs:
+      path: .devcontainer/Dockerfile
+      stage: linting
+      job_suffix: " .devcontainer/Dockerfile"
+  - template: Jobs/Container-Scanning.gitlab-ci.yml
+
+stages:
+  - linting
+  - build
+  - test
+
+docker build:
+  stage: build
+  variables:
+    DOCKER_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - |
+      docker build \
+        --pull \
+        --label org.opencontainers.image.created=$(date -Iseconds) \
+        --label org.opencontainers.image.revision=${CI_COMMIT_REF_SLUG} \
+        -t "$DOCKER_IMAGE_NAME" -f deployments/docker/Dockerfile .
+    - docker push "$DOCKER_IMAGE_NAME"
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        docker tag "$DOCKER_IMAGE_NAME" "$CI_REGISTRY_IMAGE:latest"
+        docker push "$CI_REGISTRY_IMAGE:latest"
+      fi
+    - |
+      if [[ -n "$CI_COMMIT_TAG" ]]; then
+        docker tag "$DOCKER_IMAGE_NAME" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+      fi
+
+docker test:
+  stage: test
+  needs:
+    - docker build
+  variables:
+    DOCKER_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - docker run --rm ${DOCKER_IMAGE_NAME} --version
+
+container_scanning:
+  variables:
+    CS_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG

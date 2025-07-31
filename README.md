@@ -223,7 +223,7 @@ make logs
 
 ```bash
 # Copier la configuration
-cp .env.prod.example .env.prod
+cp .env.example .env.prod
 
 # Configurer les variables
 vim .env.prod
@@ -337,13 +337,10 @@ sequenceDiagram
 - [x] Docker et docker-compose
 - [x] Tests unitaires et d'intégration
 - [x] Scripts de test automatisés
-
-### 🚧 En cours
-
-- [ ] Worker de génération Slidev
-- [ ] Traitement asynchrone des jobs
-- [ ] Génération des résultats
-- [ ] Webhooks de notification
+- [x] Worker de génération Slidev
+- [x] Traitement asynchrone des jobs
+- [x] Génération des résultats
+- [x] Webhooks de notification
 
 ### 📋 À venir
 

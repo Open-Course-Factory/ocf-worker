@@ -1,0 +1,14 @@
+ignored:
+  - DL3027
+label-schema:
+  org.opencontainers.image.authors: text
+  org.opencontainers.image.base.name: text
+  org.opencontainers.image.description: text
+  org.opencontainers.image.documentation: url
+  org.opencontainers.image.licenses: spdx
+  org.opencontainers.image.ref.name: text
+  org.opencontainers.image.source: url
+  org.opencontainers.image.title: text
+  org.opencontainers.image.url: url
+  org.opencontainers.image.vendor: text
+  org.opencontainers.image.version: text

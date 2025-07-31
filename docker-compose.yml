@@ -71,7 +71,7 @@ services:
       - ocf-worker-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -95,7 +95,6 @@ services:
       - ./deployments/garage/garage.toml:/etc/garage.toml
     networks:
       - ocf-worker-network
-    profiles: [ "garage"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3903/health"]
