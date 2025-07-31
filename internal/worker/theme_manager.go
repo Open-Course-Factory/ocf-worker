@@ -280,6 +280,32 @@ func (tm *ThemeManager) InstallTheme(ctx context.Context, workspace *Workspace, 
 	result.Installed = tm.isThemeInstalled(workspace, normalizedTheme)
 	result.Success = result.Installed
 
+	cmd2 := exec.CommandContext(ctx, "npm", "install")
+
+	// Configurer la gestion des erreurs et des pipes
+	if err := tm.setupCommandPipes(cmd2, result); err != nil {
+		result.Error = fmt.Sprintf("Failed to setup command pipes: %v", err)
+		return result, err
+	}
+
+	// Démarrer la commande
+	if err := cmd2.Start(); err != nil {
+		result.Error = fmt.Sprintf("Failed to start installation command: %v", err)
+		return result, err
+	}
+
+	// Gérer l'installation de manière robuste
+	if err := tm.handleInstallation(installCtx, cmd2, result); err != nil {
+		// La commande a échoué, mais on a des logs utiles
+		result.Duration = int64(time.Since(startTime))
+		return result, err
+	}
+
+	// Finaliser l'installation
+	result.Duration = int64(time.Since(startTime))
+	result.Installed = tm.isThemeInstalled(workspace, normalizedTheme)
+	result.Success = result.Installed
+
 	if result.Success {
 		result.Logs = append(result.Logs, fmt.Sprintf("SUCCESS: Theme %s installed in %v", normalizedTheme, result.Duration))
 		log.Printf("Theme %s installed successfully in %v", normalizedTheme, result.Duration)
