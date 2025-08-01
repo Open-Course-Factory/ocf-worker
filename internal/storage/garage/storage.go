@@ -53,7 +53,7 @@ func NewGarageStorage(cfg *storage.StorageConfig) (storage.Storage, error) {
 	// Créer le client S3 avec endpoint personnalisé pour Garage
 	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(cfg.Endpoint)
-		o.UsePathStyle = true // Important pour Garage/MinIO
+		o.UsePathStyle = cfg.UsePathStyle // true Important pour Garage/MinIO
 	})
 
 	garage := &garageStorage{

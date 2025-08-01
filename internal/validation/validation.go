@@ -203,13 +203,13 @@ func (vs *ValidationService) ValidateFilename(filename string, directory bool) *
 		}
 	}
 
-	// Vérifier que le nom ne commence/finit pas par un espace ou un point
-	// if strings.HasPrefix(filename, " ") || strings.HasSuffix(filename, " ") ||
-	// 	strings.HasPrefix(filename, ".") || strings.HasSuffix(filename, ".") {
-	// 	// result.AddError("filename", filename,
-	// 	// 	"filename cannot start or end with space or dot",
-	// 	// 	"INVALID_FORMAT")
-	// }
+	// Vérifier que le nom ne commence/finit pas par un espace ou ne finit pas par un point
+	if strings.HasPrefix(filename, " ") || strings.HasSuffix(filename, " ") ||
+		strings.HasSuffix(filename, ".") {
+		result.AddError("filename", filename,
+			"filename cannot start or end with space or dot",
+			"INVALID_FORMAT")
+	}
 
 	// Vérifier l'extension
 	ext := strings.ToLower(filepath.Ext(filename))

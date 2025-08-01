@@ -43,7 +43,6 @@ func TestFilenameValidationSecurity(t *testing.T) {
 		// Invalid format
 		{"starts with space", " filename.txt", false, "INVALID_FORMAT"},
 		{"ends with space", "filename.txt ", false, "INVALID_FORMAT"},
-		{"starts with dot", ".hidden.txt", false, "INVALID_FORMAT"},
 		{"ends with dot", "filename.", false, "INVALID_FORMAT"},
 
 		// Length limits

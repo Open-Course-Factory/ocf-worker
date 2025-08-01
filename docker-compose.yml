@@ -26,38 +26,38 @@ services:
       context: .
       dockerfile: deployments/docker/Dockerfile
     container_name: ocf-worker-service
-    environment:
-      # Database
-      DATABASE_URL: postgres://ocf_worker:worker_password_2024@postgres-worker:5432/ocf_worker_db?sslmode=disable
+    # environment:
+    #   # Database
+    #   DATABASE_URL: postgres://ocf_worker:worker_password_2024@postgres-worker:5432/ocf_worker_db?sslmode=disable
       
-      # Server
-      PORT: 8081
-      LOG_LEVEL: info
-      ENVIRONMENT: development
+    #   # Server
+    #   PORT: 8081
+    #   LOG_LEVEL: info
+    #   ENVIRONMENT: development
       
-      # Storage - Default to filesystem, change to garage if needed
-      STORAGE_TYPE: garage
-      STORAGE_PATH: /app/storage
+    #   # Storage - Default to filesystem, change to garage if needed
+    #   STORAGE_TYPE: garage
+    #   STORAGE_PATH: /app/storage
       
-      # Garage Configuration (used when STORAGE_TYPE=garage)
-      GARAGE_ENDPOINT: http://garage:3900
-      GARAGE_ACCESS_KEY: GK31c2f218a2e44f485b94239e
-      GARAGE_SECRET_KEY: 4420d99ef7aa26b56b5130ad7913a6a5c77653a5e7a47a3b4c9b8b9c5f8b7b4d
-      GARAGE_BUCKET: ocf-courses
-      GARAGE_REGION: garage
+    #   # Garage Configuration (used when STORAGE_TYPE=garage)
+    #   GARAGE_ENDPOINT: http://garage:3900
+    #   GARAGE_ACCESS_KEY: GK31c2f218a2e44f485b94239e
+    #   GARAGE_SECRET_KEY: 4420d99ef7aa26b56b5130ad7913a6a5c77653a5e7a47a3b4c9b8b9c5f8b7b4d
+    #   GARAGE_BUCKET: ocf-courses
+    #   GARAGE_REGION: garage
       
-      # Jobs
-      JOB_TIMEOUT: 30m
-      CLEANUP_INTERVAL: 1h
+    #   # Jobs
+    #   JOB_TIMEOUT: 30m
+    #   CLEANUP_INTERVAL: 1h
       
-      # Worker Configuration
-      WORKER_COUNT: 3
-      WORKER_POLL_INTERVAL: 5s
-      WORKSPACE_BASE: /app/workspaces
-      SLIDEV_COMMAND: "npx @slidev/cli"
-      CLEANUP_WORKSPACE: "true"
-      MAX_WORKSPACE_AGE: 24h
-      DOCKER_CONTAINER: "true"
+    #   # Worker Configuration
+    #   WORKER_COUNT: 3
+    #   WORKER_POLL_INTERVAL: 5s
+    #   WORKSPACE_BASE: /app/workspaces
+    #   SLIDEV_COMMAND: "npx @slidev/cli"
+    #   CLEANUP_WORKSPACE: "true"
+    #   MAX_WORKSPACE_AGE: 24h
+    #   DOCKER_CONTAINER: "true"
     ports:
       - "8081:8081"
     depends_on:

@@ -15,12 +15,13 @@ import (
 
 func getTestConfig() *storage.StorageConfig {
 	return &storage.StorageConfig{
-		Type:      "garage",
-		Endpoint:  getEnvOrDefault("TEST_GARAGE_ENDPOINT", "http://localhost:9000"),
-		AccessKey: getEnvOrDefault("TEST_GARAGE_ACCESS_KEY", "minioadmin"),
-		SecretKey: getEnvOrDefault("TEST_GARAGE_SECRET_KEY", "minioadmin"),
-		Bucket:    getEnvOrDefault("TEST_GARAGE_BUCKET", "ocf-test"),
-		Region:    getEnvOrDefault("TEST_GARAGE_REGION", "us-east-1"),
+		Type:         "garage",
+		UsePathStyle: true,
+		Endpoint:     getEnvOrDefault("TEST_GARAGE_ENDPOINT", "http://localhost:9000"),
+		AccessKey:    getEnvOrDefault("TEST_GARAGE_ACCESS_KEY", "minioadmin"),
+		SecretKey:    getEnvOrDefault("TEST_GARAGE_SECRET_KEY", "minioadmin"),
+		Bucket:       getEnvOrDefault("TEST_GARAGE_BUCKET", "ocf-test"),
+		Region:       getEnvOrDefault("TEST_GARAGE_REGION", "us-east-1"),
 	}
 }
 
@@ -194,37 +195,41 @@ func TestGarageStorageConfig(t *testing.T) {
 			{
 				name: "missing endpoint",
 				config: &storage.StorageConfig{
-					Type:      "garage",
-					AccessKey: "test",
-					SecretKey: "test",
-					Bucket:    "test",
+					Type:         "garage",
+					UsePathStyle: true,
+					AccessKey:    "test",
+					SecretKey:    "test",
+					Bucket:       "test",
 				},
 			},
 			{
 				name: "missing access key",
 				config: &storage.StorageConfig{
-					Type:      "garage",
-					Endpoint:  "http://localhost:9000",
-					SecretKey: "test",
-					Bucket:    "test",
+					Type:         "garage",
+					UsePathStyle: true,
+					Endpoint:     "http://localhost:9000",
+					SecretKey:    "test",
+					Bucket:       "test",
 				},
 			},
 			{
 				name: "missing secret key",
 				config: &storage.StorageConfig{
-					Type:      "garage",
-					Endpoint:  "http://localhost:9000",
-					AccessKey: "test",
-					Bucket:    "test",
+					Type:         "garage",
+					UsePathStyle: true,
+					Endpoint:     "http://localhost:9000",
+					AccessKey:    "test",
+					Bucket:       "test",
 				},
 			},
 			{
 				name: "missing bucket",
 				config: &storage.StorageConfig{
-					Type:      "garage",
-					Endpoint:  "http://localhost:9000",
-					AccessKey: "test",
-					SecretKey: "test",
+					Type:         "garage",
+					UsePathStyle: true,
+					Endpoint:     "http://localhost:9000",
+					AccessKey:    "test",
+					SecretKey:    "test",
 				},
 			},
 		}
@@ -239,12 +244,13 @@ func TestGarageStorageConfig(t *testing.T) {
 
 	t.Run("Valid config", func(t *testing.T) {
 		cfg := &storage.StorageConfig{
-			Type:      "garage",
-			Endpoint:  "http://localhost:9000",
-			AccessKey: "test",
-			SecretKey: "test",
-			Bucket:    "test",
-			Region:    "us-east-1",
+			Type:         "garage",
+			UsePathStyle: true,
+			Endpoint:     "http://localhost:9000",
+			AccessKey:    "test",
+			SecretKey:    "test",
+			Bucket:       "test",
+			Region:       "us-east-1",
 		}
 
 		// Cette fonction devrait au moins créer le client sans erreur
