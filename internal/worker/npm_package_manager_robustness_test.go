@@ -16,17 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestThemeManagerConcurrency teste la gestion de la concurrence
-func TestThemeManagerConcurrency(t *testing.T) {
+// TestNpmPackageManagerConcurrency teste la gestion de la concurrence
+func TestNpmPackageManagerConcurrency(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "theme-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	themeManager := NewThemeManager(tempDir)
+	themeManager := NewNpmPackageManager(tempDir)
 
 	// Créer un workspace de test
 	workspace, err := NewWorkspace(tempDir, uuid.New())
 	require.NoError(t, err)
+
 	defer workspace.Cleanup()
 
 	// Créer un package.json basique
@@ -38,7 +39,7 @@ func TestThemeManagerConcurrency(t *testing.T) {
 	const numGoroutines = 5
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var results []*models.ThemeInstallResult
+	var results []*models.NpmPackageInstallResult
 	var errors []error
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -56,7 +57,7 @@ func TestThemeManagerConcurrency(t *testing.T) {
 			defer wg.Done()
 
 			theme := themes[id%len(themes)]
-			result, err := themeManager.InstallTheme(ctx, workspace, theme)
+			result, err := themeManager.InstallNpmPackage(ctx, workspace, theme)
 
 			mu.Lock()
 			results = append(results, result)
@@ -74,19 +75,19 @@ func TestThemeManagerConcurrency(t *testing.T) {
 
 	// Vérifier qu'il n'y a pas de race conditions
 	for _, result := range results {
-		assert.NotEmpty(t, result.Theme)
+		assert.NotEmpty(t, result.Package)
 		assert.NotEmpty(t, result.Logs)
 		// Les erreurs sont acceptables (npm peut échouer), mais pas de paniques
 	}
 }
 
-// TestThemeManagerTimeout teste la gestion des timeouts
-func TestThemeManagerTimeout(t *testing.T) {
+// TestNpmPackageManagerTimeout teste la gestion des timeouts
+func TestNpmPackageManagerTimeout(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "theme-timeout-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	themeManager := NewThemeManager(tempDir)
+	npmPackageManager := NewNpmPackageManager(tempDir)
 
 	workspace, err := NewWorkspace(tempDir, uuid.New())
 	require.NoError(t, err)
@@ -101,7 +102,7 @@ func TestThemeManagerTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	result, err := themeManager.InstallTheme(ctx, workspace, "@slidev/theme-default")
+	result, err := npmPackageManager.InstallNpmPackage(ctx, workspace, "@slidev/theme-default")
 
 	// Le timeout devrait être géré proprement
 	assert.NotNil(t, result)
@@ -122,8 +123,8 @@ func TestThemeManagerTimeout(t *testing.T) {
 	assert.NotEmpty(t, result.Logs)
 }
 
-// TestThemeManagerReasonableTimeout teste avec un timeout plus réaliste
-func TestThemeManagerReasonableTimeout(t *testing.T) {
+// TestNpmPackageManagerReasonableTimeout teste avec un timeout plus réaliste
+func TestNpmPackageManagerReasonableTimeout(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping timeout test in short mode")
 	}
@@ -132,7 +133,7 @@ func TestThemeManagerReasonableTimeout(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	themeManager := NewThemeManager(tempDir)
+	themeManager := NewNpmPackageManager(tempDir)
 
 	workspace, err := NewWorkspace(tempDir, uuid.New())
 	require.NoError(t, err)
@@ -148,7 +149,7 @@ func TestThemeManagerReasonableTimeout(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	result, err := themeManager.InstallTheme(ctx, workspace, "@slidev/theme-nonexistent-xyz")
+	result, err := themeManager.InstallNpmPackage(ctx, workspace, "@slidev/theme-nonexistent-xyz")
 	duration := time.Since(start)
 
 	// Vérifier que ça s'arrête dans les temps
@@ -163,13 +164,13 @@ func TestThemeManagerReasonableTimeout(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestThemeManagerErrorHandling teste la gestion d'erreurs
-func TestThemeManagerErrorHandling(t *testing.T) {
+// TestNpmPackageManagerErrorHandling teste la gestion d'erreurs
+func TestNpmPackageManagerErrorHandling(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "theme-error-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	themeManager := NewThemeManager(tempDir)
+	themeManager := NewNpmPackageManager(tempDir)
 
 	workspace, err := NewWorkspace(tempDir, uuid.New())
 	require.NoError(t, err)
@@ -178,56 +179,15 @@ func TestThemeManagerErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
 	// Test avec thème vide
-	result, err := themeManager.InstallTheme(ctx, workspace, "")
+	result, err := themeManager.InstallNpmPackage(ctx, workspace, "")
 	assert.Error(t, err)
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "cannot be empty")
 
 	// Test avec workspace sans package.json
-	result, err = themeManager.InstallTheme(ctx, workspace, "nonexistent-theme-xyz")
+	result, _ = themeManager.InstallNpmPackage(ctx, workspace, "nonexistent-theme-xyz")
 	assert.NotNil(t, result)
 	// Error acceptable, mais pas de panic
-}
-
-// TestAutoInstallRobustness teste la robustesse de l'auto-installation
-func TestAutoInstallRobustness(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "auto-install-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	themeManager := NewThemeManager(tempDir)
-
-	workspace, err := NewWorkspace(tempDir, uuid.New())
-	require.NoError(t, err)
-	defer workspace.Cleanup()
-
-	// Créer un fichier slides.md avec plusieurs thèmes
-	slidesContent := `---
-theme: nonexistent-theme-1
----
-
-# Test
-
-Content with @slidev/theme-nonexistent-2 reference
-`
-	err = workspace.WriteFile("slides.md", strings.NewReader(slidesContent))
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Test d'auto-installation
-	results, err := themeManager.AutoInstallMissingThemes(ctx, workspace)
-
-	// Pas d'erreur fatale même si les thèmes n'existent pas
-	assert.NoError(t, err)
-	assert.NotNil(t, results)
-
-	// Vérifier que tous les résultats ont des logs
-	for _, result := range results {
-		assert.NotEmpty(t, result.Theme)
-		assert.NotEmpty(t, result.Logs)
-	}
 }
 
 // BenchmarkThemeInstallation benchmark l'installation de thèmes
@@ -236,7 +196,7 @@ func BenchmarkThemeInstallation(b *testing.B) {
 	require.NoError(b, err)
 	defer os.RemoveAll(tempDir)
 
-	themeManager := NewThemeManager(tempDir)
+	themeManager := NewNpmPackageManager(tempDir)
 
 	b.ResetTimer()
 
@@ -251,7 +211,7 @@ func BenchmarkThemeInstallation(b *testing.B) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
 		// Installation (peut échouer, on mesure juste les performances)
-		_, _ = themeManager.InstallTheme(ctx, workspace, "@slidev/theme-default")
+		_, _ = themeManager.InstallNpmPackage(ctx, workspace, "@slidev/theme-default")
 
 		cancel()
 		workspace.Cleanup()

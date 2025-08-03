@@ -21,7 +21,7 @@ import (
 // SlidevRunner exécute les commandes Slidev
 type SlidevRunner struct {
 	config       *PoolConfig
-	themeManager *ThemeManager
+	themeManager *NpmPackageManager
 }
 
 // SlidevResult contient le résultat de l'exécution Slidev
@@ -37,22 +37,27 @@ type SlidevResult struct {
 func NewSlidevRunner(config *PoolConfig) *SlidevRunner {
 	return &SlidevRunner{
 		config:       config,
-		themeManager: NewThemeManager(config.WorkspaceBase),
+		themeManager: NewNpmPackageManager(config.WorkspaceBase),
 	}
 }
 
-func (sr *SlidevRunner) InstallMissingThemes(ctx context.Context, workspace *Workspace, job *models.GenerationJob) error {
-	log.Printf("Job %s: Checking for missing themes...", job.ID)
+func (sr *SlidevRunner) InstallNpmPackages(ctx context.Context, workspace *Workspace, job *models.GenerationJob) error {
+	log.Printf("Job %s: Installing packages...", job.ID)
 
-	// Auto-installer les thèmes manquants
-	results, err := sr.themeManager.AutoInstallMissingThemes(ctx, workspace)
+	// Auto-installer les packages
+	results, err := sr.themeManager.AutoInstallNpmPackages(ctx, workspace)
 	if err != nil {
-		return fmt.Errorf("failed to auto-install themes: %w", err)
+		return fmt.Errorf("failed to auto-install packages: %w", err)
 	}
 
-	if len(results) == 0 {
-		log.Printf("Job %s: No missing themes detected", job.ID)
-		return nil
+	// Installer les package spécifiés
+	for _, npmPackage := range workspace.npmPackages {
+		individualPackageResults, individualErr := sr.themeManager.InstallNpmPackage(ctx, workspace, npmPackage)
+		results = append(results, individualPackageResults)
+		if individualErr != nil {
+			return fmt.Errorf("failed to install packages: %w", err)
+		}
+
 	}
 
 	// Vérifier les résultats
@@ -61,11 +66,11 @@ func (sr *SlidevRunner) InstallMissingThemes(ctx context.Context, workspace *Wor
 
 	for _, result := range results {
 		if result.Success {
-			successThemes = append(successThemes, result.Theme)
-			log.Printf("Job %s: Successfully installed theme: %s", job.ID, result.Theme)
+			successThemes = append(successThemes, result.Package)
+			log.Printf("Job %s: Successfully installed theme: %s", job.ID, result.Package)
 		} else {
-			failedThemes = append(failedThemes, result.Theme)
-			log.Printf("Job %s: Failed to install theme: %s - %s", job.ID, result.Theme, result.Error)
+			failedThemes = append(failedThemes, result.Package)
+			log.Printf("Job %s: Failed to install theme: %s - %s", job.ID, result.Package, result.Error)
 		}
 	}
 
@@ -95,7 +100,7 @@ func (sr *SlidevRunner) Build(ctx context.Context, workspace *Workspace, job *mo
 	}
 
 	result.Logs = append(result.Logs, "Checking and installing missing themes...")
-	if err := sr.InstallMissingThemes(ctx, workspace, job); err != nil {
+	if err := sr.InstallNpmPackages(ctx, workspace, job); err != nil {
 		result.Logs = append(result.Logs, fmt.Sprintf("WARNING: Theme installation failed: %v", err))
 		// On continue quand même, car les thèmes peuvent être optionnels
 		log.Printf("Job %s: Theme installation failed but continuing: %v", job.ID, err)
@@ -169,7 +174,8 @@ func (sr *SlidevRunner) Build(ctx context.Context, workspace *Workspace, job *mo
 	case <-ctx.Done():
 		// Timeout ou annulation
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			errKill := cmd.Process.Kill()
+			result.Logs = append(result.Logs, fmt.Sprintf("ERROR: Command kill failed %v", errKill))
 		}
 		result.ExitCode = -1
 		result.Logs = append(result.Logs, fmt.Sprintf("ERROR: Command timeout or cancelled after %v", time.Since(startTime)))
@@ -295,7 +301,7 @@ func (sr *SlidevRunner) prepareBuildCommand(ctx context.Context, workspace *Work
 	slidevCmd := sr.detectSlidevCommand()
 
 	// Arguments pour la build avec répertoire de sortie explicite
-	args := []string{"build", "--out", "./dist", "--theme", "@slidev/theme-default"}
+	args := []string{"build", "--out", "./dist"}
 
 	// Vérifier s'il y a un fichier de configuration spécifique
 	if workspace.FileExists("slidev.config.js") || workspace.FileExists("slidev.config.ts") {

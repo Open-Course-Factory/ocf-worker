@@ -61,9 +61,6 @@ import (
 // @tag.name Worker
 // @tag.description Monitoring et gestion du pool de workers
 //
-// @tag.name Themes
-// @tag.description Gestion automatique des thèmes Slidev
-//
 // @tag.name Archive
 // @tag.description Création et téléchargement d'archives de résultats
 //

@@ -455,67 +455,6 @@ func (av *APIValidator) ValidateWorkspaceCleanupParams(maxAgeParam string) (*Wor
 	return params, result
 }
 
-// ValidateThemeName valide un nom de thème Slidev
-func (av *APIValidator) ValidateThemeName(themeName string) *ValidationResult {
-	result := &ValidationResult{Valid: true}
-
-	// Validation de base
-	if themeName == "" {
-		result.AddError("theme", "", "theme name is required", "THEME_REQUIRED")
-		return result
-	}
-
-	// Longueur raisonnable
-	if len(themeName) > 100 {
-		result.AddError("theme", themeName, "theme name too long (max 100 characters)", "THEME_NAME_TOO_LONG")
-	}
-
-	// Caractères autorisés pour les packages npm
-	validThemePattern := regexp.MustCompile(`^[@a-zA-Z0-9][a-zA-Z0-9\-_/]*$`)
-	if !validThemePattern.MatchString(themeName) {
-		result.AddError("theme", themeName, "invalid theme name format", "INVALID_THEME_NAME")
-	}
-
-	// Vérifier les formats acceptés
-	validFormats := []string{
-		"@slidev/theme-",
-		"slidev-theme-",
-		"@",
-	}
-
-	isValidFormat := false
-	for _, format := range validFormats {
-		if strings.HasPrefix(themeName, format) {
-			isValidFormat = true
-			break
-		}
-	}
-
-	// Autoriser aussi les noms simples qui seront normalisés
-	if !isValidFormat && !strings.Contains(themeName, "/") && !strings.Contains(themeName, "@") {
-		isValidFormat = true
-	}
-
-	if !isValidFormat {
-		result.AddError("theme", themeName, "theme must be @slidev/theme-*, slidev-theme-*, or a simple name", "INVALID_THEME_FORMAT")
-	}
-
-	// Blacklist de sécurité
-	dangerousNames := []string{
-		"../", "./", "~",
-		"node_modules", "package.json", "package-lock.json",
-		"exec", "eval", "system", "spawn",
-	}
-
-	for _, dangerous := range dangerousNames {
-		if strings.Contains(strings.ToLower(themeName), dangerous) {
-			result.AddError("theme", themeName, "theme name contains forbidden patterns", "DANGEROUS_THEME_NAME")
-		}
-	}
-
-	return result
-}
-
 // SanitizeFilePath nettoie un chemin de fichier en préservant la structure de dossiers
 func (av *APIValidator) SanitizeFilePath(filePath string) string {
 	if filePath == "" {

@@ -244,9 +244,9 @@ func (vs *ValidationService) ValidateFileHeader(header *multipart.FileHeader) *V
 			"FILE_TOO_LARGE")
 	}
 
-	if header.Size == 0 {
-		result.AddError("file_size", "0", "file is empty", "EMPTY_FILE")
-	}
+	// if header.Size == 0 {
+	// 	result.AddError("file_size", "0", "file is empty", "EMPTY_FILE")
+	// }
 
 	// Vérifier le type MIME si disponible
 	if len(header.Header["Content-Type"]) > 0 {

@@ -14,14 +14,16 @@ import (
 
 // Workspace représente un espace de travail isolé pour un job
 type Workspace struct {
-	jobID    uuid.UUID
-	basePath string
-	path     string
-	distPath string
+	jobID       uuid.UUID
+	basePath    string
+	path        string
+	distPath    string
+	npmPackages []string
 }
 
 // NewWorkspace crée un nouveau workspace pour un job avec gestion des permissions
 func NewWorkspace(basePath string, jobID uuid.UUID) (*Workspace, error) {
+
 	// S'assurer que le répertoire de base existe avec les bonnes permissions
 	if err := ensureBaseDirectory(basePath); err != nil {
 		return nil, fmt.Errorf("failed to ensure base directory: %w", err)
@@ -39,10 +41,11 @@ func NewWorkspace(basePath string, jobID uuid.UUID) (*Workspace, error) {
 	distPath := filepath.Join(workspacePath, "dist")
 
 	workspace := &Workspace{
-		jobID:    jobID,
-		basePath: basePath,
-		path:     workspacePath,
-		distPath: distPath,
+		jobID:       jobID,
+		basePath:    basePath,
+		path:        workspacePath,
+		distPath:    distPath,
+		npmPackages: []string{},
 	}
 
 	log.Printf("Created workspace for job %s at %s", jobID, workspacePath)

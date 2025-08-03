@@ -46,7 +46,6 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 	jobHandlers := NewHandlers(jobService)
 	storageHandlers := NewStorageHandlers(storageService)
 	workerHandlers := NewWorkerHandlers(workerPool)
-	themeHandlers := NewThemeHandlers(storageService, workerPool.GetConfig().WorkspaceBase)
 	archiveHandlers := NewArchiveHandlers(storageService)
 
 	api := r.Group("/api/v1")
@@ -125,23 +124,6 @@ func SetupRouter(jobService jobs.JobService, storageService *storage.StorageServ
 			workerAPI.POST("/workspaces/cleanup",
 				validation.ValidateRequest(validation.ValidateWorkspaceCleanupParams),
 				workerHandlers.CleanupOldWorkspaces)
-		}
-
-		themeAPI := api.Group("/themes")
-		{
-			themeAPI.GET("/available", themeHandlers.ListAvailableThemes)
-
-			themeAPI.POST("/install",
-				validation.ValidateRequest(validation.ValidateThemeInstallRequest),
-				themeHandlers.InstallTheme)
-
-			themeAPI.GET("/jobs/:job_id/detect",
-				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
-				themeHandlers.DetectThemes)
-
-			themeAPI.POST("/jobs/:job_id/install",
-				validation.ValidateRequest(validation.ValidateJobIDParam("job_id")),
-				themeHandlers.InstallJobThemes)
 		}
 
 		storage.GET("/courses/:course_id/archive",

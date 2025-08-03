@@ -193,7 +193,9 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 	workspace, err := NewWorkspace(p.config.WorkspaceBase, job.ID)
 	if err != nil {
 		result.Error = fmt.Errorf("failed to create workspace: %w", err)
-		p.updateJobStatus(ctx, job.ID, models.StatusFailed, 0, result.Error.Error())
+		if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusFailed, 0, result.Error.Error()); errUpdate != nil {
+			log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+		}
 		return result
 	}
 
@@ -216,11 +218,15 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 	log.Printf("Job %s: Downloading sources", job.ID)
 	if err := p.downloadSources(ctx, job, workspace); err != nil {
 		result.Error = fmt.Errorf("failed to download sources: %w", err)
-		p.updateJobStatus(ctx, job.ID, models.StatusFailed, 20, result.Error.Error())
+		if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusFailed, 20, result.Error.Error()); errUpdate != nil {
+			log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+		}
 		return result
 	}
 
-	p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 30, "Sources downloaded")
+	if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 30, "Sources downloaded"); errUpdate != nil {
+		log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+	}
 	result.Progress = 30
 
 	// Étape 2: Préparer l'environnement Slidev
@@ -229,18 +235,25 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 		log.Printf("Job %s: Slidev preparation failed (non-fatal): %v", job.ID, err)
 	}
 
-	p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 40, "Environment prepared")
+	if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 40, "Environment prepared"); errUpdate != nil {
+		log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+	}
+
+	//
 
 	// Étape 3: Exécuter Slidev build
 	log.Printf("Job %s: Running Slidev build", job.ID)
 	slidevResult, err := p.slidevRunner.Build(ctx, workspace, job)
 	if err != nil {
 		result.Error = fmt.Errorf("slidev build failed: %w", err)
-		p.updateJobStatus(ctx, job.ID, models.StatusFailed, 50, result.Error.Error())
+		if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusFailed, 50, result.Error.Error()); errUpdate != nil {
+			log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+		}
 
 		// Sauvegarder les logs même en cas d'échec
 		if len(slidevResult.Logs) > 0 {
-			p.saveJobLogs(ctx, job.ID, slidevResult.Logs)
+			errSave := p.saveJobLogs(ctx, job.ID, slidevResult.Logs)
+			log.Printf("Failed to save logs for job %s: %v", job.ID, errSave)
 		}
 
 		// Debug: lister le contenu du workspace
@@ -248,7 +261,9 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 		return result
 	}
 
-	p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 70, "Slidev build completed")
+	if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 70, "Slidev build completed"); errUpdate != nil {
+		log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+	}
 	result.Progress = 70
 	result.LogOutput = slidevResult.Logs
 
@@ -256,14 +271,18 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 	log.Printf("Job %s: Uploading results", job.ID)
 	if err := p.uploadResults(ctx, job, workspace); err != nil {
 		result.Error = fmt.Errorf("failed to upload results: %w", err)
-		p.updateJobStatus(ctx, job.ID, models.StatusFailed, 80, result.Error.Error())
+		if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusFailed, 80, result.Error.Error()); errUpdate != nil {
+			log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+		}
 
 		// Debug: lister le contenu du workspace
 		p.debugWorkspaceContents(workspace, job.ID)
 		return result
 	}
 
-	p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 90, "Results uploaded")
+	if errUpdate := p.updateJobStatus(ctx, job.ID, models.StatusProcessing, 90, "Results uploaded"); errUpdate != nil {
+		log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
+	}
 
 	// Étape 5: Sauvegarder les logs
 	if len(result.LogOutput) > 0 {

@@ -144,6 +144,7 @@ type GenerationRequest struct {
 	CourseID    uuid.UUID              `json:"course_id" binding:"required"`
 	SourcePath  string                 `json:"source_path" binding:"required"`
 	CallbackURL string                 `json:"callback_url,omitempty"`
+	Packages    []string               `json:"packages,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 } // @name GenerationRequest
 
