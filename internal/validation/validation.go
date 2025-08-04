@@ -27,10 +27,10 @@ type ValidationConfig struct {
 // DefaultValidationConfig retourne une configuration par défaut sécurisée
 func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
-		MaxFileSize:       10 * 1024 * 1024, // 20MB par fichier
-		MaxTotalSize:      50 * 1024 * 1024, // 100MB total
-		MaxFiles:          100,              // 500 fichiers max
-		MaxFilenameLength: 255,              // 255 caractères max
+		MaxFileSize:       10 * 1024 * 1024,
+		MaxTotalSize:      50 * 1024 * 1024,
+		MaxFiles:          100,
+		MaxFilenameLength: 255,
 		AllowedExtensions: map[string]bool{
 			".md":    true, // Markdown
 			".css":   true, // Styles
@@ -245,10 +245,6 @@ func (vs *ValidationService) ValidateFileHeader(header *multipart.FileHeader) *V
 			fmt.Sprintf("file %v too large (max %d bytes)", header.Filename, vs.config.MaxFileSize),
 			"FILE_TOO_LARGE")
 	}
-
-	// if header.Size == 0 {
-	// 	result.AddError("file_size", "0", "file is empty", "EMPTY_FILE")
-	// }
 
 	// Vérifier le type MIME si disponible
 	if len(header.Header["Content-Type"]) > 0 {

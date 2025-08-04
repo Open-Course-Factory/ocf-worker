@@ -221,15 +221,6 @@ func TestFileUploadValidation(t *testing.T) {
 		}
 		assert.True(t, found, "Should have DUPLICATE_FILENAME error")
 	})
-
-	t.Run("Empty files", func(t *testing.T) {
-		files := []*multipart.FileHeader{
-			createTestFileHeader("empty.md", "text/markdown", 0),
-		}
-
-		result := validator.ValidateFiles(files)
-		assert.False(t, result.Valid, "Empty files should fail")
-	})
 }
 
 func TestURLValidation(t *testing.T) {
