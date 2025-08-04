@@ -252,8 +252,10 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 
 		// Sauvegarder les logs même en cas d'échec
 		if len(slidevResult.Logs) > 0 {
-			errSave := p.saveJobLogs(ctx, job.ID, slidevResult.Logs)
-			log.Printf("Failed to save logs for job %s: %v", job.ID, errSave)
+			if errSave := p.saveJobLogs(ctx, job.ID, slidevResult.Logs); errSave != nil {
+				log.Printf("Failed to save logs for job %s: %v", job.ID, errSave)
+			}
+			result.LogOutput = append(result.LogOutput, slidevResult.Logs...)
 		}
 
 		// Debug: lister le contenu du workspace
@@ -265,7 +267,7 @@ func (p *JobProcessor) ProcessJob(ctx context.Context, job *models.GenerationJob
 		log.Printf("Job %s: update failed: %v", job.ID, errUpdate)
 	}
 	result.Progress = 70
-	result.LogOutput = slidevResult.Logs
+	result.LogOutput = append(result.LogOutput, slidevResult.Logs...)
 
 	// Étape 4: Upload des résultats
 	log.Printf("Job %s: Uploading results", job.ID)

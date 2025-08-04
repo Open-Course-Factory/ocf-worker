@@ -46,6 +46,7 @@ func (s *jobServiceImpl) CreateJob(ctx context.Context, req *models.GenerationRe
 		CallbackURL: req.CallbackURL,
 		Metadata:    metadata,
 		Logs:        models.StringSlice{}, // Initialiser avec un slice vide
+		NpmPackages: req.Packages,
 	}
 
 	if err := s.repo.Create(ctx, job); err != nil {

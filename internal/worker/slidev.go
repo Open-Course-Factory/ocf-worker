@@ -20,8 +20,8 @@ import (
 
 // SlidevRunner exécute les commandes Slidev
 type SlidevRunner struct {
-	config       *PoolConfig
-	themeManager *NpmPackageManager
+	config            *PoolConfig
+	npmPackageManager *NpmPackageManager
 }
 
 // SlidevResult contient le résultat de l'exécution Slidev
@@ -36,8 +36,8 @@ type SlidevResult struct {
 // NewSlidevRunner crée un nouveau runner Slidev
 func NewSlidevRunner(config *PoolConfig) *SlidevRunner {
 	return &SlidevRunner{
-		config:       config,
-		themeManager: NewNpmPackageManager(config.WorkspaceBase),
+		config:            config,
+		npmPackageManager: NewNpmPackageManager(config.WorkspaceBase),
 	}
 }
 
@@ -45,14 +45,14 @@ func (sr *SlidevRunner) InstallNpmPackages(ctx context.Context, workspace *Works
 	log.Printf("Job %s: Installing packages...", job.ID)
 
 	// Auto-installer les packages
-	results, err := sr.themeManager.AutoInstallNpmPackages(ctx, workspace)
+	results, err := sr.npmPackageManager.AutoInstallNpmPackages(ctx, workspace)
 	if err != nil {
 		return fmt.Errorf("failed to auto-install packages: %w", err)
 	}
 
 	// Installer les package spécifiés
-	for _, npmPackage := range workspace.npmPackages {
-		individualPackageResults, individualErr := sr.themeManager.InstallNpmPackage(ctx, workspace, npmPackage)
+	for _, npmPackage := range job.NpmPackages {
+		individualPackageResults, individualErr := sr.npmPackageManager.InstallNpmPackage(ctx, workspace, npmPackage)
 		results = append(results, individualPackageResults)
 		if individualErr != nil {
 			return fmt.Errorf("failed to install packages: %w", err)
@@ -61,25 +61,25 @@ func (sr *SlidevRunner) InstallNpmPackages(ctx context.Context, workspace *Works
 	}
 
 	// Vérifier les résultats
-	var failedThemes []string
-	var successThemes []string
+	var failedPackages []string
+	var successPackages []string
 
 	for _, result := range results {
 		if result.Success {
-			successThemes = append(successThemes, result.Package)
-			log.Printf("Job %s: Successfully installed theme: %s", job.ID, result.Package)
+			successPackages = append(successPackages, result.Package)
+			log.Printf("Job %s: Successfully installed package: %s", job.ID, result.Package)
 		} else {
-			failedThemes = append(failedThemes, result.Package)
-			log.Printf("Job %s: Failed to install theme: %s - %s", job.ID, result.Package, result.Error)
+			failedPackages = append(failedPackages, result.Package)
+			log.Printf("Job %s: Failed to install package: %s - %s", job.ID, result.Package, result.Error)
 		}
 	}
 
-	if len(successThemes) > 0 {
-		log.Printf("Job %s: Installed %d themes: %v", job.ID, len(successThemes), successThemes)
+	if len(successPackages) > 0 {
+		log.Printf("Job %s: Installed %d packages: %v", job.ID, len(successPackages), successPackages)
 	}
 
-	if len(failedThemes) > 0 {
-		return fmt.Errorf("failed to install %d themes: %v", len(failedThemes), failedThemes)
+	if len(failedPackages) > 0 {
+		return fmt.Errorf("Failed to install %d packages: %v", len(failedPackages), failedPackages)
 	}
 
 	return nil
@@ -99,13 +99,13 @@ func (sr *SlidevRunner) Build(ctx context.Context, workspace *Workspace, job *mo
 		return result, fmt.Errorf("prerequisites check failed: %w", err)
 	}
 
-	result.Logs = append(result.Logs, "Checking and installing missing themes...")
+	result.Logs = append(result.Logs, "Checking and installing missing packagess...")
 	if err := sr.InstallNpmPackages(ctx, workspace, job); err != nil {
-		result.Logs = append(result.Logs, fmt.Sprintf("WARNING: Theme installation failed: %v", err))
+		result.Logs = append(result.Logs, fmt.Sprintf("WARNING: Package installation failed: %v", err))
 		// On continue quand même, car les thèmes peuvent être optionnels
-		log.Printf("Job %s: Theme installation failed but continuing: %v", job.ID, err)
+		log.Printf("Job %s: Package installation failed but continuing: %v", job.ID, err)
 	} else {
-		result.Logs = append(result.Logs, "Theme installation completed successfully")
+		result.Logs = append(result.Logs, "Package installation completed successfully")
 	}
 
 	// Préparer la commande Slidev
@@ -597,7 +597,6 @@ func (sr *SlidevRunner) InstallDependencies(ctx context.Context, workspace *Work
 
 // SlidevBuildOptions contient les options pour la build Slidev
 type SlidevBuildOptions struct {
-	Theme   string            // Thème à utiliser
 	Output  string            // Répertoire de sortie (par défaut: dist)
 	Base    string            // Base URL
 	Options map[string]string // Options additionnelles

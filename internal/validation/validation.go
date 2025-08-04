@@ -27,9 +27,9 @@ type ValidationConfig struct {
 // DefaultValidationConfig retourne une configuration par défaut sécurisée
 func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
-		MaxFileSize:       10 * 1024 * 1024, // 10MB par fichier
-		MaxTotalSize:      50 * 1024 * 1024, // 50MB total
-		MaxFiles:          30,               // 30 fichiers max
+		MaxFileSize:       10 * 1024 * 1024, // 20MB par fichier
+		MaxTotalSize:      50 * 1024 * 1024, // 100MB total
+		MaxFiles:          100,              // 500 fichiers max
 		MaxFilenameLength: 255,              // 255 caractères max
 		AllowedExtensions: map[string]bool{
 			".md":    true, // Markdown
@@ -215,7 +215,9 @@ func (vs *ValidationService) ValidateFilename(filename string, directory bool) *
 	ext := strings.ToLower(filepath.Ext(filename))
 	if !directory {
 		if ext == "" {
-			result.AddError("filename", filename, "filename must have an extension", "NO_EXTENSION")
+			if filename != "LICENSE" {
+				result.AddError("filename", filename, "filename must have an extension", "NO_EXTENSION")
+			}
 		} else if !vs.config.AllowedExtensions[ext] {
 			result.AddError("filename", filename,
 				fmt.Sprintf("file extension %s not allowed", ext),
@@ -240,7 +242,7 @@ func (vs *ValidationService) ValidateFileHeader(header *multipart.FileHeader) *V
 	// Vérifier la taille
 	if header.Size > vs.config.MaxFileSize {
 		result.AddError("file_size", fmt.Sprintf("%d", header.Size),
-			fmt.Sprintf("file too large (max %d bytes)", vs.config.MaxFileSize),
+			fmt.Sprintf("file %v too large (max %d bytes)", header.Filename, vs.config.MaxFileSize),
 			"FILE_TOO_LARGE")
 	}
 

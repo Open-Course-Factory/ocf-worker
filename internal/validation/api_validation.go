@@ -268,7 +268,7 @@ func (av *APIValidator) ValidateContentSafety(content []byte, filename string) *
 	}
 
 	// Vérifier qu'il n'y a pas de caractères de contrôle dangereux
-	if ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
+	if ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".gif" {
 		for i, b := range content {
 			if b < 32 && b != 9 && b != 10 && b != 13 { // Permettre tab, LF, CR
 				result.AddError("content", filename,

@@ -97,6 +97,7 @@ type GenerationJob struct {
 	SourcePath  string      `json:"source_path" gorm:"type:text;not null"`
 	ResultPath  string      `json:"result_path" gorm:"type:text"`
 	CallbackURL string      `json:"callback_url" gorm:"type:text"`
+	NpmPackages StringSlice `json:"npm_packages" gorm:"type:jsonb;default:'[]'"`
 	Error       string      `json:"error,omitempty" gorm:"type:text"`
 	Logs        StringSlice `json:"logs" gorm:"type:jsonb;default:'[]'"`
 	Metadata    JSON        `json:"metadata" gorm:"type:jsonb;default:'{}'"`

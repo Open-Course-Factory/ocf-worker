@@ -14,11 +14,10 @@ import (
 
 // Workspace représente un espace de travail isolé pour un job
 type Workspace struct {
-	jobID       uuid.UUID
-	basePath    string
-	path        string
-	distPath    string
-	npmPackages []string
+	jobID    uuid.UUID
+	basePath string
+	path     string
+	distPath string
 }
 
 // NewWorkspace crée un nouveau workspace pour un job avec gestion des permissions
@@ -41,11 +40,10 @@ func NewWorkspace(basePath string, jobID uuid.UUID) (*Workspace, error) {
 	distPath := filepath.Join(workspacePath, "dist")
 
 	workspace := &Workspace{
-		jobID:       jobID,
-		basePath:    basePath,
-		path:        workspacePath,
-		distPath:    distPath,
-		npmPackages: []string{},
+		jobID:    jobID,
+		basePath: basePath,
+		path:     workspacePath,
+		distPath: distPath,
 	}
 
 	log.Printf("Created workspace for job %s at %s", jobID, workspacePath)
