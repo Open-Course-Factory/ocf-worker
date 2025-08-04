@@ -22,6 +22,10 @@ RUN npm install -g @slidev/cli@latest \
     && go install golang.org/x/tools/gopls@latest \
     && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
+RUN npx playwright install-deps chromium \
+    && npm cache clean --force \
+    && npx @slidev/cli --version
+
 # Créer un utilisateur pour VS Code avec sudo
 RUN groupadd --gid 1000 vscode \
     && useradd --uid 1000 --gid vscode --shell /bin/bash --create-home vscode \
